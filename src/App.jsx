@@ -7,9 +7,9 @@ import { calculateATR, detectOrderBlocks, generateAIRecommendation } from './uti
 import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
-async function fetchKlines(symbol, interval) {
+async function fetchKlines(symbol, timeframe) {
   const cleanSymbol = symbol.trim().toUpperCase().replace(/USDT$/i, '');
-  const url = `/api/klines?symbol=${cleanSymbol}USDT&interval=${interval}&limit=500`;
+  const url = `/api/klines?symbol=${cleanSymbol}USDT&interval=${timeframe}&limit=500`;
 
   let res;
   try {
@@ -24,7 +24,6 @@ async function fetchKlines(symbol, interval) {
   }
 
   const klines = await res.json();
-
   if (!Array.isArray(klines)) throw new Error(`Geçersiz parite adı: ${cleanSymbol}`);
 
   return klines.map((k, i) => {
@@ -48,7 +47,7 @@ async function fetchKlines(symbol, interval) {
 
 export default function App() {
   const [symbol, setSymbol] = useState('BTC');
-  const [interval, setInterval] = useState('5m');
+  const [timeframe, setTimeframe] = useState('5m'); // 'interval' değil 'timeframe' — window.setInterval ile çakışmayı önler
   const [atrMultiplier, setAtrMultiplier] = useState('1.5');
   const [data, setData] = useState([]);
   const [orderBlocks, setOrderBlocks] = useState([]);
@@ -74,8 +73,7 @@ export default function App() {
         const result = await callGeminiAI(key, rawData, obs);
         setAi(result);
       } catch (err) {
-        // Gemini başarısız olursa kural tabanlıya dön
-        console.warn('Gemini hatası, kural tabanlı AI kullanılıyor:', err.message);
+        console.warn('Gemini hatası:', err.message);
         setAi(generateAIRecommendation(rawData, obs));
       } finally {
         setAiLoading(false);
@@ -96,18 +94,18 @@ export default function App() {
   const startCountdown = useCallback(() => {
     clearInterval(countdownRef.current);
     setCountdown(30);
-    countdownRef.current = setInterval(() => {
+    countdownRef.current = window.setInterval(() => {
       setCountdown(prev => (prev <= 1 ? 0 : prev - 1));
     }, 1000);
   }, []);
 
-  const fetchData = useCallback(async (sym, intv, mult, key) => {
+  const fetchData = useCallback(async (sym, tf, mult, key) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoading(true);
     clearInterval(countdownRef.current);
     try {
-      const raw = await fetchKlines(sym, intv);
+      const raw = await fetchKlines(sym, tf);
       processAndSet(raw, mult, key);
       startCountdown();
     } catch (err) {
@@ -120,13 +118,13 @@ export default function App() {
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
-      fetchData(symbol, interval, atrMultiplier, geminiKey);
+      fetchData(symbol, timeframe, atrMultiplier, geminiKey);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
 
   useEffect(() => {
-    fetchData(symbol, interval, atrMultiplier, geminiKey);
+    fetchData(symbol, timeframe, atrMultiplier, geminiKey);
     return () => clearInterval(countdownRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -141,8 +139,8 @@ export default function App() {
     }
   };
 
-  const handleIntervalChange = (val) => {
-    setInterval(val);
+  const handleTimeframeChange = (val) => {
+    setTimeframe(val);
     fetchData(symbol, val, atrMultiplier, geminiKey);
   };
 
@@ -151,11 +149,11 @@ export default function App() {
       <Header
         symbol={symbol}
         setSymbol={setSymbol}
-        interval={interval}
-        setInterval={handleIntervalChange}
+        interval={timeframe}
+        setInterval={handleTimeframeChange}
         atrMultiplier={atrMultiplier}
         setAtrMultiplier={handleAtrChange}
-        onFetch={() => fetchData(symbol, interval, atrMultiplier, geminiKey)}
+        onFetch={() => fetchData(symbol, timeframe, atrMultiplier, geminiKey)}
         loading={loading}
         onOpenSidebar={() => setSidebarOpen(true)}
         countdown={countdown}
