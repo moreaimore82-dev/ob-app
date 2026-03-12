@@ -26,8 +26,10 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
-        cleanupOutdatedCaches: true
+        cleanupOutdatedCaches: true,
+        // JS/CSS dosyalarını cache'leme — her zaman sunucudan al
+        runtimeCaching: [],
+        globPatterns: ['**/*.{ico,png,svg,webmanifest}']
       }
     })
   ]
