@@ -8,7 +8,8 @@ import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
 async function fetchKlines(symbol, interval) {
-  const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=500`;
+  const cleanSymbol = symbol.trim().toUpperCase().replace(/USDT$/i, '');
+  const url = `/api/klines?symbol=${cleanSymbol}USDT&interval=${interval}&limit=500`;
 
   let res;
   try {
@@ -17,11 +18,14 @@ async function fetchKlines(symbol, interval) {
     throw new Error(`Ağ hatası: ${e.message}`);
   }
 
-  if (!res.ok) throw new Error(`Binance hatası: ${res.status}. Parite adını kontrol edin (örn: BTC, ETH).`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Hata ${res.status}: ${body.slice(0, 120)}`);
+  }
 
   const klines = await res.json();
 
-  if (!Array.isArray(klines)) throw new Error(`Geçersiz yanıt: ${JSON.stringify(klines).slice(0,100)}`);
+  if (!Array.isArray(klines)) throw new Error(`Geçersiz parite adı: ${cleanSymbol}`);
 
   return klines.map((k, i) => {
     const totalVol = parseFloat(k[5]);
