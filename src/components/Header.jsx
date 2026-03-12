@@ -39,7 +39,7 @@ export default function Header({
           </svg>
           <div>
             <h1 className="brand-title">Gerçek Zamanlı OB Analizi</h1>
-            <p className="brand-sub">Bybit API · Gemini AI</p>
+            <p className="brand-sub">Binance API · Gemini AI</p>
           </div>
         </div>
 
@@ -104,7 +104,7 @@ export default function Header({
               placeholder="BTC"
               className="symbol-input"
             />
-            <span className="symbol-suffix">USDT</span>
+            <span className="symbol-suffix">USDT.P</span>
           </div>
         </div>
 

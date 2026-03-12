@@ -7,12 +7,9 @@ import { calculateATR, detectOrderBlocks, generateAIRecommendation } from './uti
 import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
-// Binance interval → Bybit interval
-const INTERVAL_MAP = { '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1d': 'D' };
-
 async function fetchKlines(symbol, interval) {
-  const bybitInterval = INTERVAL_MAP[interval] || '5';
-  const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}USDT&interval=${bybitInterval}&limit=500`;
+  // Netlify function üzerinden Binance'e proxy (Türkiye kısıtlamasını aşar)
+  const url = `/api/klines?symbol=${symbol}USDT&interval=${interval}&limit=500`;
 
   let res;
   try {
@@ -23,29 +20,25 @@ async function fetchKlines(symbol, interval) {
 
   if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}. Parite adını kontrol edin (örn: BTC, ETH).`);
 
-  const json = await res.json();
+  const klines = await res.json();
 
-  if (json.retCode !== 0) {
-    throw new Error(`Hata: ${json.retMsg || 'Geçersiz parite adı.'}`);
-  }
+  if (!Array.isArray(klines)) throw new Error('Geçersiz parite adı. (örn: BTC, ETH, SOL)');
 
-  // Bybit en yeni mumu başa koyar → ters çevir
-  const list = [...json.result.list].reverse();
-
-  return list.map((k, i) => {
-    // [timestamp, open, high, low, close, volume, turnover]
+  return klines.map((k, i) => {
     const totalVol = parseFloat(k[5]);
+    const buyVol = parseFloat(k[9]);
+    const buyPct = totalVol === 0 ? 0 : (buyVol / totalVol) * 100;
     return {
       index: i,
-      time: parseInt(k[0]),
+      time: k[0],
       open: parseFloat(k[1]),
       high: parseFloat(k[2]),
       low: parseFloat(k[3]),
       close: parseFloat(k[4]),
       volume: totalVol.toFixed(2),
-      buyVolume: '0',
-      sellVolume: '0',
-      buyPct: '50', // Bybit kline'da taker buy verisi yok
+      buyVolume: buyVol.toFixed(2),
+      sellVolume: (totalVol - buyVol).toFixed(2),
+      buyPct: buyPct.toFixed(1),
     };
   });
 }
