@@ -8,7 +8,7 @@ import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
 async function fetchKlines(symbol, interval) {
-  // Netlify function üzerinden Binance'e proxy (Türkiye kısıtlamasını aşar)
+  // Netlify _redirects proxy üzerinden Binance'e (Türkiye kısıtlamasını aşar)
   const url = `/api/klines?symbol=${symbol}USDT&interval=${interval}&limit=500`;
 
   let res;
