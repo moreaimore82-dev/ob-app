@@ -179,37 +179,63 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
     }
 
     if (hoveredOB) {
-      const tipW = 175, tipH = 82;
-      let tipX = mouseX + 15, tipY = mouseY + 15;
-      if (tipX + tipW > canvas.width - rightPad) tipX = mouseX - tipW - 10;
-      if (tipY + tipH > canvas.height) tipY = mouseY - tipH - 10;
+      // Mobilde canvas küçükse daha büyük tooltip
+      const isMobile = canvas.width < 600;
+      const tipW = isMobile ? canvas.width - 24 : 200;
+      const tipH = isMobile ? 110 : 90;
+      const fBase = isMobile ? 14 : 12;
+      const fSmall = isMobile ? 13 : 11;
+      const lineH = isMobile ? 20 : 16;
 
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+      // Mobilde ortada üstte göster, masaüstünde fare yanında
+      let tipX, tipY;
+      if (isMobile) {
+        tipX = 12;
+        tipY = 12;
+      } else {
+        tipX = mouseX + 15;
+        tipY = mouseY + 15;
+        if (tipX + tipW > canvas.width - rightPad) tipX = mouseX - tipW - 10;
+        if (tipY + tipH > canvas.height) tipY = mouseY - tipH - 10;
+      }
+
+      ctx.fillStyle = 'rgba(10, 17, 32, 0.97)';
       ctx.strokeStyle = hoveredOB.active ? (hoveredOB.type === 'bullish' ? '#4ade80' : '#fb7185') : '#64748b';
-      ctx.lineWidth = 1;
-      drawRoundRect(ctx, tipX, tipY, tipW, tipH, 6);
+      ctx.lineWidth = isMobile ? 2 : 1;
+      drawRoundRect(ctx, tipX, tipY, tipW, tipH, 8);
       ctx.fill();
       ctx.stroke();
 
       ctx.textAlign = 'left';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold ${fBase}px sans-serif`;
       let title = hoveredOB.type === 'bullish' ? '🟩 Bullish OB' : '🟥 Bearish OB';
       if (!hoveredOB.active) title += ' (Kırıldı)';
       ctx.fillStyle = '#f8fafc';
-      ctx.fillText(title, tipX + 12, tipY + 22);
+      ctx.fillText(title, tipX + 12, tipY + fBase + 8);
 
+      const divY = tipY + fBase + 14;
       ctx.beginPath();
-      ctx.moveTo(tipX + 10, tipY + 30);
-      ctx.lineTo(tipX + tipW - 10, tipY + 30);
-      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.moveTo(tipX + 10, divY);
+      ctx.lineTo(tipX + tipW - 10, divY);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.font = '11px sans-serif';
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(`Üst: ${formatFiyat(hoveredOB.top, decimals)}`, tipX + 12, tipY + 46);
-      ctx.fillText(`Alt: ${formatFiyat(hoveredOB.bottom, decimals)}`, tipX + 12, tipY + 60);
+      ctx.font = `${fSmall}px sans-serif`;
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Üst:', tipX + 12, divY + lineH);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(formatFiyat(hoveredOB.top, decimals), tipX + (isMobile ? 50 : 40), divY + lineH);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Alt:', tipX + 12, divY + lineH * 2);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(formatFiyat(hoveredOB.bottom, decimals), tipX + (isMobile ? 50 : 40), divY + lineH * 2);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('Hacim:', tipX + 12, divY + lineH * 3);
       ctx.fillStyle = hoveredOB.type === 'bullish' ? '#4ade80' : '#fb7185';
-      ctx.fillText(`Hacim: ${formatHacim(hoveredOB.data.volume)} (%${hoveredOB.data.buyPct} Alıcı)`, tipX + 12, tipY + 74);
+      ctx.fillText(`${formatHacim(hoveredOB.data.volume)}  Alıcı: %${hoveredOB.data.buyPct}`, tipX + (isMobile ? 65 : 55), divY + lineH * 3);
     }
   }
 

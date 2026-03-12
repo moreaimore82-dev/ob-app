@@ -283,6 +283,25 @@ body {
   touch-action: none;
 }
 
+.zoom-hint {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 80px;
+  text-align: center;
+  font-size: 9px;
+  color: rgba(139,148,158,0.5);
+  pointer-events: none;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 768px) {
+  .zoom-hint { display: block; }
+}
+
 /* ===== SIDEBAR (Desktop) ===== */
 .sidebar {
   width: 300px;
