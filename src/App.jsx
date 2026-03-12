@@ -8,21 +8,20 @@ import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
 async function fetchKlines(symbol, interval) {
-  // Netlify _redirects proxy üzerinden Binance'e (Türkiye kısıtlamasını aşar)
-  const url = `/api/klines?symbol=${symbol}USDT&interval=${interval}&limit=500`;
+  const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=500`;
 
   let res;
   try {
     res = await fetch(url);
-  } catch {
-    throw new Error('Ağ hatası. İnternet bağlantınızı kontrol edin.');
+  } catch (e) {
+    throw new Error(`Ağ hatası: ${e.message}`);
   }
 
-  if (!res.ok) throw new Error(`Sunucu hatası: ${res.status}. Parite adını kontrol edin (örn: BTC, ETH).`);
+  if (!res.ok) throw new Error(`Binance hatası: ${res.status}. Parite adını kontrol edin (örn: BTC, ETH).`);
 
   const klines = await res.json();
 
-  if (!Array.isArray(klines)) throw new Error('Geçersiz parite adı. (örn: BTC, ETH, SOL)');
+  if (!Array.isArray(klines)) throw new Error(`Geçersiz yanıt: ${JSON.stringify(klines).slice(0,100)}`);
 
   return klines.map((k, i) => {
     const totalVol = parseFloat(k[5]);
