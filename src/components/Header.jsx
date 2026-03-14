@@ -2,12 +2,10 @@ import { useEffect, useState } from 'react';
 
 export default function Header({
   symbol, setSymbol, interval, setInterval, atrMultiplier, setAtrMultiplier,
-  onFetch, loading, onOpenSidebar, countdown, geminiKey, setGeminiKey,
+  onFetch, loading, onOpenSidebar, countdown,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyDraft, setKeyDraft] = useState(geminiKey);
 
   useEffect(() => {
     const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowInstall(true); };
@@ -23,11 +21,6 @@ export default function Header({
     setDeferredPrompt(null);
   };
 
-  const saveKey = () => {
-    setGeminiKey(keyDraft.trim());
-    setShowKeyInput(false);
-  };
-
   const barPct = (countdown / 30) * 100;
 
   return (
@@ -39,7 +32,7 @@ export default function Header({
           </svg>
           <div>
             <h1 className="brand-title">Gerçek Zamanlı OB Analizi</h1>
-            <p className="brand-sub">Binance API · Gemini AI</p>
+            <p className="brand-sub">Binance Futures · Order Blocks</p>
           </div>
         </div>
 
@@ -49,48 +42,11 @@ export default function Header({
               📲 Uygulamayı Yükle
             </button>
           )}
-          <button
-            className={`btn-gemini ${geminiKey ? 'active' : ''}`}
-            onClick={() => { setKeyDraft(geminiKey); setShowKeyInput(v => !v); }}
-            title="Gemini API Key"
-          >
-            {geminiKey ? '✅ Gemini AI' : '🔑 Gemini Key'}
-          </button>
           <button className="btn-sidebar" onClick={onOpenSidebar}>
             📋 OB Listesi
           </button>
         </div>
       </div>
-
-      {/* Gemini Key Input Panel */}
-      {showKeyInput && (
-        <div className="gemini-key-panel">
-          <span className="gemini-key-label">Gemini API Key:</span>
-          <input
-            type="password"
-            className="gemini-key-input"
-            placeholder="AIza..."
-            value={keyDraft}
-            onChange={e => setKeyDraft(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && saveKey()}
-            autoFocus
-          />
-          <button className="btn-save-key" onClick={saveKey}>Kaydet</button>
-          {geminiKey && (
-            <button className="btn-clear-key" onClick={() => { setGeminiKey(''); setKeyDraft(''); setShowKeyInput(false); }}>
-              Sil
-            </button>
-          )}
-          <a
-            href="https://aistudio.google.com/app/apikey"
-            target="_blank"
-            rel="noreferrer"
-            className="gemini-key-link"
-          >
-            Key al →
-          </a>
-        </div>
-      )}
 
       <div className="header-controls">
         <div className="control-group">

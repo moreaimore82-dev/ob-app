@@ -10,6 +10,7 @@ export default function ChartCanvas({ data, orderBlocks }) {
     offsetX: 0,
     candleWidth: 8,
     spacing: 2,
+    yZoom: 1,
     isDragging: false,
     mouseX: -1,
     mouseY: -1,
@@ -34,6 +35,7 @@ export default function ChartCanvas({ data, orderBlocks }) {
       mouseX: s.mouseX,
       mouseY: s.mouseY,
       isDragging: s.isDragging,
+      yZoom: s.yZoom,
     });
   }, []);
 
@@ -96,25 +98,31 @@ export default function ChartCanvas({ data, orderBlocks }) {
     const onWheel = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left; // zoom merkezi
-      const dir = e.deltaY > 0 ? -1 : 1;
-      const oldTW = s.candleWidth + s.spacing;
-      s.candleWidth = Math.max(2, Math.min(30, s.candleWidth + dir));
-      s.spacing = s.candleWidth * 0.25;
-      const newTW = s.candleWidth + s.spacing;
-      // Fare altındaki mumun yerini koru
-      s.offsetX = mx - (mx - s.offsetX) * (newTW / oldTW);
+      const mx = e.clientX - rect.left;
+
+      // Fiyat ekseni üzerindeyse Y zoom
+      if (mx >= canvas.width - RIGHT_PAD - 10) {
+        const dir = e.deltaY > 0 ? -1 : 1;
+        s.yZoom = Math.max(0.2, Math.min(10, s.yZoom * (1 + dir * 0.1)));
+      } else {
+        // Normal X zoom
+        const dir = e.deltaY > 0 ? -1 : 1;
+        const oldTW = s.candleWidth + s.spacing;
+        s.candleWidth = Math.max(2, Math.min(30, s.candleWidth + dir));
+        s.spacing = s.candleWidth * 0.25;
+        const newTW = s.candleWidth + s.spacing;
+        s.offsetX = mx - (mx - s.offsetX) * (newTW / oldTW);
+      }
       render();
     };
 
     // ── TOUCH ──────────────────────────────────────────────
-    // Durum değişkenleri
-    let prevTouches = null;     // önceki frame'deki dokunuşlar
-    let tapStart = null;        // tap tespiti için
-    let lastTapTime = 0;        // double-tap
-    let touchMode = null;       // 'pan' | 'pinch' | 'axis'
+    let prevTouches = null;
+    let tapStart = null;
+    let lastTapTime = 0;
+    let touchMode = null;  // 'pan' | 'pinch' | 'yAxis' | 'yAxisPinch'
     let axisStartY = 0;
-    let axisStartCW = 0;
+    let axisStartZoom = 1;
 
     const clearTooltip = () => {
       if (s.tooltipTimer) { clearTimeout(s.tooltipTimer); s.tooltipTimer = null; }
@@ -128,6 +136,8 @@ export default function ChartCanvas({ data, orderBlocks }) {
       }, 3000);
     };
 
+    const isInAxisArea = (clientX, rect) => clientX - rect.left >= canvas.width - RIGHT_PAD - 10;
+
     const onTouchStart = (e) => {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
@@ -139,21 +149,31 @@ export default function ChartCanvas({ data, orderBlocks }) {
         tapStart = { x: tx, y: ty, time: Date.now() };
         prevTouches = [{ clientX: t.clientX, clientY: t.clientY }];
 
-        if (tx >= canvas.width - RIGHT_PAD - 10) {
-          // Fiyat ekseni bölgesi → dikey zoom
-          touchMode = 'axis';
+        if (isInAxisArea(t.clientX, rect)) {
+          // Fiyat ekseni: tek parmak dikey sürükleme = Y zoom
+          touchMode = 'yAxis';
           axisStartY = t.clientY;
-          axisStartCW = s.candleWidth;
+          axisStartZoom = s.yZoom;
         } else {
           touchMode = 'pan';
         }
 
       } else if (e.touches.length === 2) {
-        touchMode = 'pinch';
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
         tapStart = null;
+
+        const midX = (t0.clientX + t1.clientX) / 2;
+        if (isInAxisArea(midX, rect)) {
+          // İki parmak fiyat ekseni üzerinde → Y ekseni pinch zoom
+          touchMode = 'yAxisPinch';
+        } else {
+          touchMode = 'pinch';
+        }
+
         prevTouches = [
-          { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY },
-          { clientX: e.touches[1].clientX, clientY: e.touches[1].clientY },
+          { clientX: t0.clientX, clientY: t0.clientY },
+          { clientX: t1.clientX, clientY: t1.clientY },
         ];
       }
     };
@@ -173,19 +193,16 @@ export default function ChartCanvas({ data, orderBlocks }) {
         prevTouches = [{ clientX: t.clientX, clientY: t.clientY }];
         render();
 
-      } else if (touchMode === 'axis' && e.touches.length === 1) {
-        // Dikey kaydırma → zoom (yukarı = büyüt)
+      } else if (touchMode === 'yAxis' && e.touches.length === 1) {
+        // Dikey sürükleme → Y zoom (yukarı = zoom in)
         const dy = axisStartY - e.touches[0].clientY;
-        const newCW = Math.max(2, Math.min(30, axisStartCW + dy * 0.1));
-        s.candleWidth = newCW;
-        s.spacing = newCW * 0.25;
+        s.yZoom = Math.max(0.2, Math.min(10, axisStartZoom * Math.pow(1.01, dy)));
         render();
 
       } else if (touchMode === 'pinch' && e.touches.length === 2) {
         const t0 = e.touches[0];
         const t1 = e.touches[1];
 
-        // Önceki ve yeni mesafe
         const prevDx = prevTouches[0].clientX - prevTouches[1].clientX;
         const prevDy = prevTouches[0].clientY - prevTouches[1].clientY;
         const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
@@ -194,7 +211,10 @@ export default function ChartCanvas({ data, orderBlocks }) {
         const curDy = t0.clientY - t1.clientY;
         const curDist = Math.sqrt(curDx * curDx + curDy * curDy);
 
-        if (prevDist < 1) { prevTouches = [{ clientX: t0.clientX, clientY: t0.clientY }, { clientX: t1.clientX, clientY: t1.clientY }]; return; }
+        if (prevDist < 1) {
+          prevTouches = [{ clientX: t0.clientX, clientY: t0.clientY }, { clientX: t1.clientX, clientY: t1.clientY }];
+          return;
+        }
 
         const scale = curDist / prevDist;
         const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
@@ -215,6 +235,22 @@ export default function ChartCanvas({ data, orderBlocks }) {
 
         prevTouches = [{ clientX: t0.clientX, clientY: t0.clientY }, { clientX: t1.clientX, clientY: t1.clientY }];
         render();
+
+      } else if (touchMode === 'yAxisPinch' && e.touches.length === 2) {
+        const t0 = e.touches[0];
+        const t1 = e.touches[1];
+
+        // Dikey mesafe farkı → Y zoom
+        const prevVertDist = Math.abs(prevTouches[0].clientY - prevTouches[1].clientY);
+        const curVertDist = Math.abs(t0.clientY - t1.clientY);
+
+        if (prevVertDist > 1) {
+          const scale = curVertDist / prevVertDist;
+          s.yZoom = Math.max(0.2, Math.min(10, s.yZoom * scale));
+        }
+
+        prevTouches = [{ clientX: t0.clientX, clientY: t0.clientY }, { clientX: t1.clientX, clientY: t1.clientY }];
+        render();
       }
     };
 
@@ -222,16 +258,16 @@ export default function ChartCanvas({ data, orderBlocks }) {
       e.preventDefault();
 
       if (e.touches.length === 0) {
-        // Double-tap → zoom reset
         const now = Date.now();
         if (tapStart && !s.isDragging && now - tapStart.time < 250) {
           if (now - lastTapTime < 350) {
-            // Double tap: sağa hizala
+            // Double tap: sağa hizala + Y zoom sıfırla
             const container = containerRef.current;
             if (container) {
               const tw = s.candleWidth + s.spacing;
               s.offsetX = (container.clientWidth - 130) - (s.data.length * tw);
             }
+            s.yZoom = 1;
             render();
           }
           lastTapTime = now;

@@ -4,7 +4,6 @@ import AIBar from './components/AIBar';
 import ChartCanvas from './components/ChartCanvas';
 import Sidebar from './components/Sidebar';
 import { calculateATR, detectOrderBlocks, generateAIRecommendation } from './utils/calculations';
-import { callGeminiAI } from './utils/gemini';
 import './App.css';
 
 async function fetchKlines(symbol, timeframe) {
@@ -52,43 +51,23 @@ export default function App() {
   const [data, setData] = useState([]);
   const [orderBlocks, setOrderBlocks] = useState([]);
   const [ai, setAi] = useState(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [geminiKey, setGeminiKey] = useState(() => localStorage.getItem('gemini_key') || '');
 
   const countdownRef = useRef(null);
   const isFetchingRef = useRef(false);
 
-  const handleGeminiKeyChange = (key) => {
-    setGeminiKey(key);
-    localStorage.setItem('gemini_key', key);
-  };
-
-  const runAI = useCallback(async (rawData, obs, key) => {
-    if (key) {
-      setAiLoading(true);
-      try {
-        const result = await callGeminiAI(key, rawData, obs);
-        setAi(result);
-      } catch (err) {
-        console.warn('Gemini hatası:', err.message);
-        setAi(generateAIRecommendation(rawData, obs));
-      } finally {
-        setAiLoading(false);
-      }
-    } else {
-      setAi(generateAIRecommendation(rawData, obs));
-    }
+  const runAI = useCallback((rawData, obs) => {
+    setAi(generateAIRecommendation(rawData, obs));
   }, []);
 
-  const processAndSet = useCallback((rawData, mult, key) => {
+  const processAndSet = useCallback((rawData, mult) => {
     const atr = calculateATR(rawData);
     const obs = detectOrderBlocks(rawData, atr, parseFloat(mult) || 1.5);
     setData(rawData);
     setOrderBlocks(obs);
-    runAI(rawData, obs, key);
+    runAI(rawData, obs);
   }, [runAI]);
 
   const startCountdown = useCallback(() => {
@@ -99,14 +78,14 @@ export default function App() {
     }, 1000);
   }, []);
 
-  const fetchData = useCallback(async (sym, tf, mult, key) => {
+  const fetchData = useCallback(async (sym, tf, mult) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
     setLoading(true);
     clearInterval(countdownRef.current);
     try {
       const raw = await fetchKlines(sym, tf);
-      processAndSet(raw, mult, key);
+      processAndSet(raw, mult);
       startCountdown();
     } catch (err) {
       alert(err.message);
@@ -118,13 +97,13 @@ export default function App() {
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
-      fetchData(symbol, timeframe, atrMultiplier, geminiKey);
+      fetchData(symbol, timeframe, atrMultiplier);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown]);
 
   useEffect(() => {
-    fetchData(symbol, timeframe, atrMultiplier, geminiKey);
+    fetchData(symbol, timeframe, atrMultiplier);
     return () => clearInterval(countdownRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -135,13 +114,13 @@ export default function App() {
       const atr = calculateATR(data);
       const obs = detectOrderBlocks(data, atr, parseFloat(val) || 1.5);
       setOrderBlocks(obs);
-      runAI(data, obs, geminiKey);
+      runAI(data, obs);
     }
   };
 
   const handleTimeframeChange = (val) => {
     setTimeframe(val);
-    fetchData(symbol, val, atrMultiplier, geminiKey);
+    fetchData(symbol, val, atrMultiplier);
   };
 
   return (
@@ -153,14 +132,12 @@ export default function App() {
         setInterval={handleTimeframeChange}
         atrMultiplier={atrMultiplier}
         setAtrMultiplier={handleAtrChange}
-        onFetch={() => fetchData(symbol, timeframe, atrMultiplier, geminiKey)}
+        onFetch={() => fetchData(symbol, timeframe, atrMultiplier)}
         loading={loading}
         onOpenSidebar={() => setSidebarOpen(true)}
         countdown={countdown}
-        geminiKey={geminiKey}
-        setGeminiKey={handleGeminiKeyChange}
       />
-      <AIBar ai={ai} aiLoading={aiLoading} hasKey={!!geminiKey} />
+      <AIBar ai={ai} />
       <div className="main-content">
         <ChartCanvas data={data} orderBlocks={orderBlocks} />
         <Sidebar

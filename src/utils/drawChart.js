@@ -29,7 +29,7 @@ function drawRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging }) {
+export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1 }) {
   if (!data.length) return;
 
   const ctx = canvas.getContext('2d');
@@ -55,9 +55,16 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   if (!hasVisible) { maxPrice = 100; minPrice = 0; }
 
   const pad = (maxPrice - minPrice) * 0.1;
-  maxPrice += pad;
-  minPrice -= pad;
-  const priceRange = maxPrice - minPrice || 1;
+  const baseMax = maxPrice + pad;
+  const baseMin = minPrice - pad;
+  const baseRange = baseMax - baseMin || 1;
+  const baseCenter = (baseMax + baseMin) / 2;
+
+  // yZoom > 1 = zoom in (dar aralık), yZoom < 1 = zoom out (geniş aralık)
+  const priceRange = baseRange / Math.max(0.1, yZoom);
+  maxPrice = baseCenter + priceRange / 2;
+  minPrice = baseCenter - priceRange / 2;
+
   const scaleY = canvas.height / priceRange;
 
   let decimals = 2;

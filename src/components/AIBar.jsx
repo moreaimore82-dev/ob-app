@@ -1,20 +1,9 @@
-export default function AIBar({ ai, aiLoading, hasKey }) {
-  if (aiLoading) return (
-    <div className="ai-bar">
-      <div className="ai-left">
-        <div className="ai-item">
-          <span className="ai-label">✨ Gemini AI:</span>
-          <span className="ai-signal neutral ai-thinking">Analiz ediliyor...</span>
-        </div>
-      </div>
-    </div>
-  );
-
+export default function AIBar({ ai }) {
   if (!ai) return (
     <div className="ai-bar">
       <div className="ai-left">
         <div className="ai-item">
-          <span className="ai-label">{hasKey ? '✨ Gemini AI:' : '⚡ AI Önerisi:'}</span>
+          <span className="ai-label">⚡ AI Önerisi:</span>
           <span className="ai-signal neutral">Yükleniyor...</span>
         </div>
       </div>
@@ -25,7 +14,7 @@ export default function AIBar({ ai, aiLoading, hasKey }) {
     <div className="ai-bar">
       <div className="ai-left">
         <div className="ai-item">
-          <span className="ai-label">{hasKey ? '✨ Gemini AI:' : '⚡ AI Önerisi:'}</span>
+          <span className="ai-label">⚡ AI Önerisi:</span>
           <span className={`ai-signal ${ai.color.replace('text-', '')}`}>{ai.signal}</span>
         </div>
         <div className="ai-item">
