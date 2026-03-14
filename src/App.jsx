@@ -214,20 +214,25 @@ export default function App() {
       const raw = await fetchKlines(sym, tf);
       processAndSet(raw, mult);
       startCountdown();
-      // Order book'u bağımsız olarak çek (OB analizini etkilemez, hata verirse sessizce geç)
-      if (showLiquidity) {
-        const currentPrice = raw[raw.length - 1]?.close;
-        fetchOrderBook(sym).then(depth => {
-          setLiquidityWalls(processOrderBook(depth, currentPrice));
-        });
-      }
     } catch (err) {
       alert(err.message);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [processAndSet, startCountdown, showLiquidity]);
+  }, [processAndSet, startCountdown]);
+
+  // Likidite duvarları: showLiquidity veya data değişince anında güncelle
+  useEffect(() => {
+    if (!showLiquidity || !data.length) {
+      setLiquidityWalls([]);
+      return;
+    }
+    const currentPrice = data[data.length - 1]?.close;
+    fetchOrderBook(symbol).then(depth => {
+      setLiquidityWalls(processOrderBook(depth, currentPrice));
+    });
+  }, [showLiquidity, data, symbol]);
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
