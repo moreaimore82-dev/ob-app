@@ -6,6 +6,53 @@ import Sidebar from './components/Sidebar';
 import { calculateATR, detectOrderBlocks, generateAIRecommendation, calcOBSuccessRate } from './utils/calculations';
 import './App.css';
 
+async function fetchOrderBook(symbol) {
+  const cleanSymbol = symbol.trim().toUpperCase().replace(/USDT$/i, '');
+  try {
+    const res = await fetch(`/api/depth?symbol=${cleanSymbol}USDT&limit=1000`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function processOrderBook(depth, currentPrice) {
+  if (!depth?.bids || !depth?.asks || !currentPrice) return [];
+
+  // Dinamik bucket boyutu (fiyatın ~0.1%'i)
+  const raw = currentPrice * 0.001;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const bucketSize = Math.round(raw / mag) * mag || mag;
+  const toBucket = (p) => Math.round(parseFloat(p) / bucketSize) * bucketSize;
+
+  const bidMap = new Map();
+  const askMap = new Map();
+  depth.bids.forEach(([p, q]) => {
+    const k = toBucket(p);
+    bidMap.set(k, (bidMap.get(k) || 0) + parseFloat(q));
+  });
+  depth.asks.forEach(([p, q]) => {
+    const k = toBucket(p);
+    askMap.set(k, (askMap.get(k) || 0) + parseFloat(q));
+  });
+
+  const proxMin = currentPrice * 0.90;
+  const proxMax = currentPrice * 1.10;
+
+  const bids = [...bidMap.entries()]
+    .filter(([p]) => p <= currentPrice && p >= proxMin)
+    .sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([price, volume]) => ({ price, volume, type: 'bid' }));
+
+  const asks = [...askMap.entries()]
+    .filter(([p]) => p >= currentPrice && p <= proxMax)
+    .sort((a, b) => b[1] - a[1]).slice(0, 3)
+    .map(([price, volume]) => ({ price, volume, type: 'ask' }));
+
+  return [...bids, ...asks];
+}
+
 async function fetchKlines(symbol, timeframe) {
   const cleanSymbol = symbol.trim().toUpperCase().replace(/USDT$/i, '');
   const url = `/api/klines?symbol=${cleanSymbol}USDT&interval=${timeframe}&limit=500`;
@@ -59,6 +106,8 @@ export default function App() {
   // Parametreler
   const [showVolume, setShowVolume] = useState(() => localStorage.getItem('param_volume') === 'true');
   const [showTrend, setShowTrend] = useState(() => localStorage.getItem('param_trend') === 'true');
+  const [showLiquidity, setShowLiquidity] = useState(() => localStorage.getItem('param_liquidity') === 'true');
+  const [liquidityWalls, setLiquidityWalls] = useState([]);
   const [alarm, setAlarm] = useState(() => {
     const v = localStorage.getItem('price_alarm');
     return v ? parseFloat(v) : null;
@@ -96,6 +145,11 @@ export default function App() {
 
   const handleSetVolume = (v) => { setShowVolume(v); localStorage.setItem('param_volume', v); };
   const handleSetTrend = (v) => { setShowTrend(v); localStorage.setItem('param_trend', v); };
+  const handleSetLiquidity = (v) => {
+    setShowLiquidity(v);
+    localStorage.setItem('param_liquidity', v);
+    if (!v) setLiquidityWalls([]);
+  };
   const handleSetAlarm = (price) => {
     if (price) {
       const p = parseFloat(price);
@@ -160,13 +214,20 @@ export default function App() {
       const raw = await fetchKlines(sym, tf);
       processAndSet(raw, mult);
       startCountdown();
+      // Order book'u bağımsız olarak çek (OB analizini etkilemez, hata verirse sessizce geç)
+      if (showLiquidity) {
+        const currentPrice = raw[raw.length - 1]?.close;
+        fetchOrderBook(sym).then(depth => {
+          setLiquidityWalls(processOrderBook(depth, currentPrice));
+        });
+      }
     } catch (err) {
       alert(err.message);
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
     }
-  }, [processAndSet, startCountdown]);
+  }, [processAndSet, startCountdown, showLiquidity]);
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
@@ -214,6 +275,8 @@ export default function App() {
         setShowVolume={handleSetVolume}
         showTrend={showTrend}
         setShowTrend={handleSetTrend}
+        showLiquidity={showLiquidity}
+        setShowLiquidity={handleSetLiquidity}
         alarm={alarm}
         setAlarm={handleSetAlarm}
       />
@@ -225,6 +288,7 @@ export default function App() {
           showVolume={showVolume}
           showTrend={showTrend}
           alarm={alarm}
+          liquidityWalls={liquidityWalls}
         />
         <Sidebar
           orderBlocks={orderBlocks}

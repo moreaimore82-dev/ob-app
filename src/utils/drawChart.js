@@ -66,7 +66,7 @@ function calcTrendLines(data, startIndex, endIndex) {
   };
 }
 
-export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1, showVolume = false, showTrend = false, alarm = null }) {
+export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1, showVolume = false, showTrend = false, alarm = null, liquidityWalls = [] }) {
   if (!data.length) return;
 
   const ctx = canvas.getContext('2d');
@@ -203,6 +203,39 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
     const yClose = getY(c.close);
     const bodyH = Math.max(1, Math.abs(yClose - yOpen));
     ctx.fillRect(x - candleWidth / 2, Math.min(yOpen, yClose), candleWidth, bodyH);
+  }
+
+  // Likidite Duvarları
+  if (liquidityWalls.length > 0) {
+    liquidityWalls.forEach(wall => {
+      const wy = getY(wall.price);
+      if (wy < 0 || wy > chartBottom) return;
+
+      const isBid = wall.type === 'bid';
+      const wallColor = isBid ? 'rgba(52, 211, 153, 0.9)' : 'rgba(251, 113, 133, 0.9)';
+
+      // Çizgi
+      ctx.strokeStyle = wallColor;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(0, wy);
+      ctx.lineTo(canvas.width - rightPad, wy);
+      ctx.stroke();
+
+      // Sol taraf etiketi (hacim)
+      const volLabel = wall.volume >= 1000
+        ? `${(wall.volume / 1000).toFixed(1)}K`
+        : wall.volume.toFixed(1);
+      const tag = `${isBid ? '▲' : '▼'} ${volLabel}`;
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'left';
+      const tw = ctx.measureText(tag).width + 8;
+      ctx.fillStyle = isBid ? 'rgba(6, 78, 59, 0.85)' : 'rgba(127, 29, 29, 0.85)';
+      ctx.fillRect(4, wy - 9, tw, 16);
+      ctx.fillStyle = wallColor;
+      ctx.fillText(tag, 8, wy + 4);
+    });
   }
 
   // Fiyat Alarmı çizgisi

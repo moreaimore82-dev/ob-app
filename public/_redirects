@@ -1,1 +1,2 @@
 /api/klines https://fapi.binance.com/fapi/v1/klines 200
+/api/depth https://fapi.binance.com/fapi/v1/depth 200

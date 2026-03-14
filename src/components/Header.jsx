@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export default function Header({
   symbol, setSymbol, interval, setInterval, atrMultiplier, setAtrMultiplier,
   onFetch, loading, onOpenSidebar, countdown,
-  showVolume, setShowVolume, showTrend, setShowTrend, alarm, setAlarm,
+  showVolume, setShowVolume, showTrend, setShowTrend, showLiquidity, setShowLiquidity, alarm, setAlarm,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
@@ -88,6 +88,15 @@ export default function Header({
               />
               <span className="param-toggle-track" />
               <span className="param-toggle-text">Trend Çizgisi</span>
+            </label>
+            <label className="param-toggle">
+              <input
+                type="checkbox"
+                checked={showLiquidity}
+                onChange={e => setShowLiquidity(e.target.checked)}
+              />
+              <span className="param-toggle-track" />
+              <span className="param-toggle-text">Likidite Duvarları</span>
             </label>
           </div>
           <div className="params-section params-alarm">
