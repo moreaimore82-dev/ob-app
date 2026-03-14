@@ -196,6 +196,38 @@ body {
   font-size: 12px;
   cursor: pointer;
 }
+.params-threshold {
+  border-left: 1px solid #374151;
+  padding-left: 12px;
+}
+.threshold-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 120px;
+  height: 4px;
+  background: #4b5563;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.threshold-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #6366f1;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.threshold-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a5b4fc;
+  min-width: 28px;
+}
+.threshold-hint {
+  font-size: 11px;
+  color: #6b7280;
+}
 .alarm-active-badge {
   font-size: 11px;
   color: #fbbf24;

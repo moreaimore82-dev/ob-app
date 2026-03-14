@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export default function Header({
   symbol, setSymbol, interval, setInterval, atrMultiplier, setAtrMultiplier,
   onFetch, loading, onOpenSidebar, countdown,
-  showTrend, setShowTrend, showLiquidity, setShowLiquidity,
+  showTrend, setShowTrend, showLiquidity, setShowLiquidity, liquidityThreshold, setLiquidityThreshold,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
@@ -80,6 +80,24 @@ export default function Header({
               <span className="param-toggle-text">Likidite Duvarları</span>
             </label>
           </div>
+          {showLiquidity && (
+            <div className="params-section params-threshold">
+              <span className="params-label">Duvar Eşiği:</span>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="0.5"
+                value={liquidityThreshold}
+                onChange={e => setLiquidityThreshold(e.target.value)}
+                className="threshold-range"
+              />
+              <span className="threshold-value">{liquidityThreshold}x</span>
+              <span className="threshold-hint">
+                {liquidityThreshold <= 2 ? '(gevşek)' : liquidityThreshold <= 5 ? '(orta)' : '(sıkı)'}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

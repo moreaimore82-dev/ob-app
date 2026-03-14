@@ -17,7 +17,7 @@ async function fetchOrderBook(symbol) {
   }
 }
 
-function processOrderBook(depth, currentPrice) {
+function processOrderBook(depth, currentPrice, thresholdMult = 4) {
   if (!depth?.bids || !depth?.asks || !currentPrice) return [];
 
   const raw = currentPrice * 0.001;
@@ -36,16 +36,22 @@ function processOrderBook(depth, currentPrice) {
     askMap.set(k, (askMap.get(k) || 0) + parseFloat(q));
   });
 
+  // Dinamik eşik: tüm bucket'ların ortalamasının thresholdMult katı
+  // Her coin/fiyat seviyesinde otomatik ölçeklenir
+  const allVols = [...bidMap.values(), ...askMap.values()];
+  const avgVol = allVols.length ? allVols.reduce((s, v) => s + v, 0) / allVols.length : 0;
+  const minVolume = avgVol * thresholdMult;
+
   const proxMin = currentPrice * 0.90;
   const proxMax = currentPrice * 1.10;
 
   const bids = [...bidMap.entries()]
-    .filter(([p]) => p <= currentPrice && p >= proxMin)
+    .filter(([p, v]) => p <= currentPrice && p >= proxMin && v >= minVolume)
     .sort((a, b) => b[1] - a[1]).slice(0, 3)
     .map(([price, volume]) => ({ price, volume, type: 'bid' }));
 
   const asks = [...askMap.entries()]
-    .filter(([p]) => p >= currentPrice && p <= proxMax)
+    .filter(([p, v]) => p >= currentPrice && p <= proxMax && v >= minVolume)
     .sort((a, b) => b[1] - a[1]).slice(0, 3)
     .map(([price, volume]) => ({ price, volume, type: 'ask' }));
 
@@ -105,6 +111,7 @@ export default function App() {
   // Parametreler
   const [showTrend, setShowTrend] = useState(() => localStorage.getItem('param_trend') === 'true');
   const [showLiquidity, setShowLiquidity] = useState(() => localStorage.getItem('param_liquidity') === 'true');
+  const [liquidityThreshold, setLiquidityThreshold] = useState(() => parseFloat(localStorage.getItem('param_liq_threshold') || '4'));
   const [liquidityWalls, setLiquidityWalls] = useState([]);
   const [convergence, setConvergence] = useState(null);
 
@@ -116,6 +123,12 @@ export default function App() {
     setShowLiquidity(v);
     localStorage.setItem('param_liquidity', v);
     if (!v) { setLiquidityWalls([]); setConvergence(null); }
+  };
+  const handleSetThreshold = (v) => {
+    const n = parseFloat(v);
+    if (isNaN(n) || n < 1) return;
+    setLiquidityThreshold(n);
+    localStorage.setItem('param_liq_threshold', String(n));
   };
 
   const processAndSet = useCallback((rawData, mult) => {
@@ -152,7 +165,7 @@ export default function App() {
     }
   }, [processAndSet, startCountdown]);
 
-  // Likidite duvarları: showLiquidity veya data değişince anında güncelle
+  // Likidite duvarları: showLiquidity, data, threshold değişince anında güncelle
   useEffect(() => {
     if (!showLiquidity || !data.length) {
       setLiquidityWalls([]);
@@ -161,11 +174,11 @@ export default function App() {
     }
     const currentPrice = data[data.length - 1]?.close;
     fetchOrderBook(symbol).then(depth => {
-      const walls = processOrderBook(depth, currentPrice);
+      const walls = processOrderBook(depth, currentPrice, liquidityThreshold);
       setLiquidityWalls(walls);
       setConvergence(calcConvergence(ai, walls, currentPrice));
     });
-  }, [showLiquidity, data, symbol]);
+  }, [showLiquidity, data, symbol, liquidityThreshold]);
 
   // ai değişince de convergence'ı güncelle
   useEffect(() => {
@@ -220,6 +233,8 @@ export default function App() {
         setShowTrend={handleSetTrend}
         showLiquidity={showLiquidity}
         setShowLiquidity={handleSetLiquidity}
+        liquidityThreshold={liquidityThreshold}
+        setLiquidityThreshold={handleSetThreshold}
       />
       <AIBar ai={ai} convergence={convergence} />
       <div className="main-content">
