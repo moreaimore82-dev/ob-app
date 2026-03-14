@@ -1,9 +1,21 @@
 import { useEffect, useState } from 'react';
 
+function ParamToggle({ checked, onChange, label, tooltip }) {
+  return (
+    <label className="param-toggle" title={tooltip}>
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span className="param-toggle-track" />
+      <span className="param-toggle-text">{label}</span>
+      {tooltip && <span className="param-tip-icon">?</span>}
+    </label>
+  );
+}
+
 export default function Header({
   symbol, setSymbol, interval, setInterval, atrMultiplier, setAtrMultiplier,
   onFetch, loading, onOpenSidebar, countdown,
   showTrend, setShowTrend, showLiquidity, setShowLiquidity, liquidityThreshold, setLiquidityThreshold,
+  showRSI, setShowRSI, showFVG, setShowFVG,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
@@ -61,28 +73,39 @@ export default function Header({
         <div className="params-panel">
           <div className="params-section">
             <span className="params-label">Göstergeler:</span>
-            <label className="param-toggle">
-              <input
-                type="checkbox"
-                checked={showTrend}
-                onChange={e => setShowTrend(e.target.checked)}
-              />
-              <span className="param-toggle-track" />
-              <span className="param-toggle-text">Trend Çizgisi</span>
-            </label>
-            <label className="param-toggle">
-              <input
-                type="checkbox"
-                checked={showLiquidity}
-                onChange={e => setShowLiquidity(e.target.checked)}
-              />
-              <span className="param-toggle-track" />
-              <span className="param-toggle-text">Likidite Duvarları</span>
-            </label>
+            <ParamToggle
+              checked={showTrend}
+              onChange={setShowTrend}
+              label="Trend Çizgisi"
+              tooltip="Son swing yüksek/düşüklerine lineer regresyon uygulayarak destek ve direnç eğilimini çizer. Fiyatın genel yönünü görselleştirir."
+            />
+            <ParamToggle
+              checked={showLiquidity}
+              onChange={setShowLiquidity}
+              label="Likidite Duvarları"
+              tooltip="Order book'ta mevcut fiyata yakın bölgelerdeki büyük alıcı (yeşil) ve satıcı (kırmızı) duvarlarını grafikte gösterir. Bu seviyeler güçlü destek/direnç işlevi görebilir."
+            />
+            <ParamToggle
+              checked={showRSI}
+              onChange={setShowRSI}
+              label="RSI Onayı"
+              tooltip="RSI (Göreceli Güç Endeksi) momentum göstergesidir. LONG sinyalinde RSI < 35 ise aşırı satım (dip yakın), SHORT sinyalinde RSI > 65 ise aşırı alım (tepe yakın) olarak OB sinyalini doğrular."
+            />
+            <ParamToggle
+              checked={showFVG}
+              onChange={setShowFVG}
+              label="FVG Onayı"
+              tooltip="Fair Value Gap (Adil Değer Boşluğu): 3 mumlu formasyonda oluşan ve henüz dolmamış fiyat boşluklarıdır. Fiyat bu boşluğa yakınsa, OB sinyalini aynı yönde güçlendirir."
+            />
           </div>
           {showLiquidity && (
             <div className="params-section params-threshold">
-              <span className="params-label">Duvar Eşiği:</span>
+              <span
+                className="params-label"
+                title="Order book hacminin ortalama bucket hacmine oranını belirler. Yüksek değer = sadece çok büyük duvarları göster. Düşük değer = daha fazla duvar göster."
+              >
+                Duvar Eşiği:
+              </span>
               <input
                 type="range"
                 min="1"

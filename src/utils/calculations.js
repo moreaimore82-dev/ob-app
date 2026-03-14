@@ -15,6 +15,64 @@ export function calculateATR(data, period = 14) {
   return atrData;
 }
 
+export function calculateRSI(data, period = 14) {
+  if (data.length < period + 1) return null;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const diff = data[i].close - data[i - 1].close;
+    if (diff > 0) gains += diff; else losses -= diff;
+  }
+  let avgGain = gains / period;
+  let avgLoss = losses / period;
+  for (let i = period + 1; i < data.length; i++) {
+    const diff = data[i].close - data[i - 1].close;
+    avgGain = (avgGain * (period - 1) + Math.max(0, diff)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(0, -diff)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - (100 / (1 + avgGain / avgLoss));
+}
+
+export function detectFVGs(data) {
+  const fvgs = [];
+  if (data.length < 3) return fvgs;
+  const currentPrice = data[data.length - 1].close;
+
+  for (let i = 2; i < data.length; i++) {
+    const a = data[i - 2];
+    const c = data[i];
+
+    // Bullish FVG: önceki mumun high'ı ile sonraki mumun low'u arasında boşluk
+    if (a.high < c.low) {
+      const bottom = a.high;
+      const top = c.low;
+      // Dolmamış mı? Sonraki mumlarda fiyat bottom'ın altına kapanmamışsa
+      let filled = false;
+      for (let j = i + 1; j < data.length; j++) {
+        if (data[j].close < bottom) { filled = true; break; }
+      }
+      // Mevcut fiyata ±20% içindeyse kaydet
+      if (!filled && top >= currentPrice * 0.80 && bottom <= currentPrice * 1.20) {
+        fvgs.push({ type: 'bullish', top, bottom });
+      }
+    }
+
+    // Bearish FVG: önceki mumun low'u ile sonraki mumun high'ı arasında boşluk
+    if (a.low > c.high) {
+      const bottom = c.high;
+      const top = a.low;
+      let filled = false;
+      for (let j = i + 1; j < data.length; j++) {
+        if (data[j].close > top) { filled = true; break; }
+      }
+      if (!filled && top >= currentPrice * 0.80 && bottom <= currentPrice * 1.20) {
+        fvgs.push({ type: 'bearish', top, bottom });
+      }
+    }
+  }
+  return fvgs;
+}
+
 export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
   const orderBlocks = [];
   const avgVolume = data.reduce((s, c) => s + parseFloat(c.volume), 0) / data.length;
@@ -65,7 +123,6 @@ export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
     }
   }
 
-  // Mitigation check
   for (const ob of orderBlocks) {
     for (let k = ob.displacementIndex + 1; k < data.length; k++) {
       const c = data[k];
@@ -105,46 +162,94 @@ export function calcOBSuccessRate(orderBlocks, data) {
   };
 }
 
-export function calcConvergence(ai, liquidityWalls, currentPrice) {
-  if (!ai || !liquidityWalls.length || !currentPrice) return null;
+// Hacim etiketleme yardımcısı
+function fmtVol(v) {
+  if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}K`;
+  return v.toFixed(0);
+}
+
+// Çoklu onay sistemi — OB temel, diğer parametreler doğrulama katar
+export function calcConvergence({ ai, liquidityWalls = [], data = [], showLiquidity, showRSI, showFVG }) {
+  if (!ai || !data.length) return null;
 
   const isLong = ai.signal.includes('LONG');
   const isShort = ai.signal.includes('SHORT');
   if (!isLong && !isShort) return null;
 
-  const band = currentPrice * 0.03; // mevcut fiyatın ±%3'ü
+  const currentPrice = data[data.length - 1].close;
+  const confirmations = [];
 
-  const fmtVol = (v) => v >= 1000000
-    ? `${(v / 1000000).toFixed(1)}M`
-    : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0);
-
-  if (isLong) {
-    // Mevcut fiyatın hemen altında büyük alıcı duvarı var mı?
-    const wall = liquidityWalls
-      .filter(w => w.type === 'bid' && w.price <= currentPrice && w.price >= currentPrice - band)
-      .sort((a, b) => b.volume - a.volume)[0];
-    if (wall) {
-      return {
-        type: 'LONG',
-        reason: `Bullish OB destek bölgesi ile ${wall.price.toFixed(0)}$ seviyesindeki ${fmtVol(wall.volume)} alıcı duvarı çakışıyor → çift onay`,
-      };
+  // --- Likidite Duvarı ---
+  if (showLiquidity && liquidityWalls.length) {
+    const band = currentPrice * 0.03;
+    if (isLong) {
+      const wall = liquidityWalls
+        .filter(w => w.type === 'bid' && w.price <= currentPrice && w.price >= currentPrice - band)
+        .sort((a, b) => b.volume - a.volume)[0];
+      if (wall) confirmations.push({
+        name: 'Likidite Duvarı',
+        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} büyük alıcı duvarı`,
+      });
+    } else {
+      const wall = liquidityWalls
+        .filter(w => w.type === 'ask' && w.price >= currentPrice && w.price <= currentPrice + band)
+        .sort((a, b) => b.volume - a.volume)[0];
+      if (wall) confirmations.push({
+        name: 'Likidite Duvarı',
+        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} büyük satıcı duvarı`,
+      });
     }
   }
 
-  if (isShort) {
-    // Mevcut fiyatın hemen üstünde büyük satıcı duvarı var mı?
-    const wall = liquidityWalls
-      .filter(w => w.type === 'ask' && w.price >= currentPrice && w.price <= currentPrice + band)
-      .sort((a, b) => b.volume - a.volume)[0];
-    if (wall) {
-      return {
-        type: 'SHORT',
-        reason: `Bearish OB direnç bölgesi ile ${wall.price.toFixed(0)}$ seviyesindeki ${fmtVol(wall.volume)} satıcı duvarı çakışıyor → çift onay`,
-      };
+  // --- RSI ---
+  if (showRSI) {
+    const rsi = calculateRSI(data);
+    if (rsi !== null) {
+      if (isLong && rsi < 35) confirmations.push({
+        name: 'RSI',
+        reason: `RSI ${rsi.toFixed(0)} — aşırı satım bölgesinde (< 35)`,
+      });
+      else if (isShort && rsi > 65) confirmations.push({
+        name: 'RSI',
+        reason: `RSI ${rsi.toFixed(0)} — aşırı alım bölgesinde (> 65)`,
+      });
     }
   }
 
-  return null;
+  // --- Fair Value Gap ---
+  if (showFVG) {
+    const fvgs = detectFVGs(data);
+    const band = currentPrice * 0.025;
+    if (isLong) {
+      const hit = fvgs.find(f =>
+        f.type === 'bullish' &&
+        f.top >= currentPrice - band &&
+        f.bottom <= currentPrice + band
+      );
+      if (hit) confirmations.push({
+        name: 'FVG',
+        reason: `${hit.bottom.toFixed(0)}–${hit.top.toFixed(0)}$ bullish dengesizlik (dolmamış boşluk)`,
+      });
+    } else {
+      const hit = fvgs.find(f =>
+        f.type === 'bearish' &&
+        f.bottom <= currentPrice + band &&
+        f.top >= currentPrice - band
+      );
+      if (hit) confirmations.push({
+        name: 'FVG',
+        reason: `${hit.bottom.toFixed(0)}–${hit.top.toFixed(0)}$ bearish dengesizlik (dolmamış boşluk)`,
+      });
+    }
+  }
+
+  if (confirmations.length === 0) return null;
+
+  return {
+    type: isLong ? 'LONG' : 'SHORT',
+    confirmations,
+  };
 }
 
 export function generateAIRecommendation(data, orderBlocks) {

@@ -330,10 +330,9 @@ body {
 
 .convergence-bar {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 14px;
 }
 .convergence-bar.long {
   background: rgba(5, 150, 105, 0.15);
@@ -342,6 +341,12 @@ body {
 .convergence-bar.short {
   background: rgba(185, 28, 28, 0.15);
   border-bottom: 1px solid rgba(251, 113, 133, 0.3);
+}
+.convergence-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .convergence-icon { font-size: 14px; flex-shrink: 0; }
 .convergence-label {
@@ -353,9 +358,64 @@ body {
 }
 .convergence-bar.long .convergence-label { color: #34d399; }
 .convergence-bar.short .convergence-label { color: #fb7185; }
-.convergence-reason {
+.convergence-tags {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.convergence-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.03em;
+}
+.convergence-bar.long .convergence-tag {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+}
+.convergence-bar.short .convergence-tag {
+  background: rgba(251, 113, 133, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.4);
+}
+.convergence-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 22px;
+}
+.convergence-reason-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   font-size: 11px;
-  color: #d1d5db;
+}
+.convergence-reason-name {
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.convergence-bar.long .convergence-reason-name { color: #6ee7b7; }
+.convergence-bar.short .convergence-reason-name { color: #fca5a5; }
+.convergence-reason-text { color: #d1d5db; }
+
+/* Param toggle tooltip icon */
+.param-tip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #374151;
+  color: #9ca3af;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: help;
+  flex-shrink: 0;
+  border: 1px solid #4b5563;
 }
 
 .ai-bar {

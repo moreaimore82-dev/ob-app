@@ -113,6 +113,8 @@ export default function App() {
   const [showLiquidity, setShowLiquidity] = useState(() => localStorage.getItem('param_liquidity') === 'true');
   const [liquidityThreshold, setLiquidityThreshold] = useState(() => parseFloat(localStorage.getItem('param_liq_threshold') || '4'));
   const [liquidityWalls, setLiquidityWalls] = useState([]);
+  const [showRSI, setShowRSI] = useState(() => localStorage.getItem('param_rsi') === 'true');
+  const [showFVG, setShowFVG] = useState(() => localStorage.getItem('param_fvg') === 'true');
   const [convergence, setConvergence] = useState(null);
 
   const countdownRef = useRef(null);
@@ -130,6 +132,8 @@ export default function App() {
     setLiquidityThreshold(n);
     localStorage.setItem('param_liq_threshold', String(n));
   };
+  const handleSetRSI = (v) => { setShowRSI(v); localStorage.setItem('param_rsi', v); };
+  const handleSetFVG = (v) => { setShowFVG(v); localStorage.setItem('param_fvg', v); };
 
   const processAndSet = useCallback((rawData, mult) => {
     const atr = calculateATR(rawData);
@@ -169,23 +173,20 @@ export default function App() {
   useEffect(() => {
     if (!showLiquidity || !data.length) {
       setLiquidityWalls([]);
-      setConvergence(null);
       return;
     }
     const currentPrice = data[data.length - 1]?.close;
     fetchOrderBook(symbol).then(depth => {
       const walls = processOrderBook(depth, currentPrice, liquidityThreshold);
       setLiquidityWalls(walls);
-      setConvergence(calcConvergence(ai, walls, currentPrice));
     });
   }, [showLiquidity, data, symbol, liquidityThreshold]);
 
-  // ai değişince de convergence'ı güncelle
+  // Convergence: ai, walls veya gösterge toggleları değişince güncelle
   useEffect(() => {
-    if (!liquidityWalls.length || !data.length) return;
-    const currentPrice = data[data.length - 1]?.close;
-    setConvergence(calcConvergence(ai, liquidityWalls, currentPrice));
-  }, [ai, liquidityWalls, data]);
+    if (!data.length) { setConvergence(null); return; }
+    setConvergence(calcConvergence({ ai, liquidityWalls, data, showLiquidity, showRSI, showFVG }));
+  }, [ai, liquidityWalls, data, showLiquidity, showRSI, showFVG]);
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
@@ -235,6 +236,10 @@ export default function App() {
         setShowLiquidity={handleSetLiquidity}
         liquidityThreshold={liquidityThreshold}
         setLiquidityThreshold={handleSetThreshold}
+        showRSI={showRSI}
+        setShowRSI={handleSetRSI}
+        showFVG={showFVG}
+        setShowFVG={handleSetFVG}
       />
       <AIBar ai={ai} convergence={convergence} />
       <div className="main-content">

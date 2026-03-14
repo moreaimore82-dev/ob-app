@@ -30,11 +30,25 @@ export default function AIBar({ ai, convergence }) {
         <div className="ai-reasoning">{ai.reasoning}</div>
       </div>
 
-      {convergence && (
+      {convergence && convergence.confirmations.length > 0 && (
         <div className={`convergence-bar ${convergence.type === 'LONG' ? 'long' : 'short'}`}>
-          <span className="convergence-icon">🔥</span>
-          <span className="convergence-label">GÜÇLÜ SİNYAL</span>
-          <span className="convergence-reason">{convergence.reason}</span>
+          <div className="convergence-header">
+            <span className="convergence-icon">🔥</span>
+            <span className="convergence-label">GÜÇLÜ SİNYAL</span>
+            <div className="convergence-tags">
+              {convergence.confirmations.map(c => (
+                <span key={c.name} className="convergence-tag">{c.name}</span>
+              ))}
+            </div>
+          </div>
+          <div className="convergence-reasons">
+            {convergence.confirmations.map(c => (
+              <div key={c.name} className="convergence-reason-row">
+                <span className="convergence-reason-name">{c.name}:</span>
+                <span className="convergence-reason-text">{c.reason}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
