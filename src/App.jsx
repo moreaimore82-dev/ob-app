@@ -68,6 +68,31 @@ export default function App() {
   const isFetchingRef = useRef(false);
   const alarmFiredRef = useRef(false);
   const prevPriceRef = useRef(null);
+  const audioCtxRef = useRef(null);
+
+  const playAlarmSound = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      // 3 kısa bip
+      [0, 0.25, 0.5].forEach((delay) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
+        gain.gain.setValueAtTime(0.6, ctx.currentTime + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.2);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + 0.2);
+      });
+    } catch (e) {
+      // Ses çalınamazsa sessizce devam et
+    }
+  }, []);
 
   const handleSetVolume = (v) => { setShowVolume(v); localStorage.setItem('param_volume', v); };
   const handleSetTrend = (v) => { setShowTrend(v); localStorage.setItem('param_trend', v); };
@@ -94,6 +119,7 @@ export default function App() {
       const crossed = (prevPrice < alarm && currentPrice >= alarm) || (prevPrice > alarm && currentPrice <= alarm);
       if (crossed && !alarmFiredRef.current) {
         alarmFiredRef.current = true;
+        playAlarmSound();
         const fire = () => new Notification('🔔 Fiyat Alarmı!', {
           body: `${symbol} fiyatı ${alarm} seviyesini geçti! Anlık: ${currentPrice.toFixed(2)}`,
           icon: '/favicon.svg',
