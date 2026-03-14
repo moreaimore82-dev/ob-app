@@ -29,7 +29,44 @@ function drawRoundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1 }) {
+function calcTrendLines(data, startIndex, endIndex) {
+  const N = 3;
+  const swingHighs = [];
+  const swingLows = [];
+
+  for (let i = startIndex + N; i <= endIndex - N && i < data.length; i++) {
+    const c = data[i];
+    let isHigh = true, isLow = true;
+    for (let j = i - N; j <= i + N; j++) {
+      if (j === i || !data[j]) continue;
+      if (data[j].high > c.high) isHigh = false;
+      if (data[j].low < c.low) isLow = false;
+    }
+    if (isHigh) swingHighs.push({ x: i, y: c.high });
+    if (isLow) swingLows.push({ x: i, y: c.low });
+  }
+
+  const linReg = (pts) => {
+    if (pts.length < 3) return null;
+    const last = pts.slice(-5);
+    const n = last.length;
+    const xMean = last.reduce((s, p) => s + p.x, 0) / n;
+    const yMean = last.reduce((s, p) => s + p.y, 0) / n;
+    const num = last.reduce((s, p) => s + (p.x - xMean) * (p.y - yMean), 0);
+    const den = last.reduce((s, p) => s + (p.x - xMean) ** 2, 0);
+    if (den === 0) return null;
+    const slope = num / den;
+    const intercept = yMean - slope * xMean;
+    return { slope, intercept };
+  };
+
+  return {
+    resistance: linReg(swingHighs),
+    support: linReg(swingLows),
+  };
+}
+
+export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1, showVolume = false, showTrend = false, alarm = null }) {
   if (!data.length) return;
 
   const ctx = canvas.getContext('2d');
@@ -40,6 +77,11 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   const totalItemWidth = candleWidth + spacing;
   const rightPad = 80;
   const visibleWidth = canvas.width - rightPad;
+
+  // Hacim alanı için chart yüksekliği ayarla
+  const volAreaH = showVolume ? Math.floor(canvas.height * 0.20) : 0;
+  const chartBottom = canvas.height - volAreaH;
+
   const visibleCandlesCount = Math.ceil(visibleWidth / totalItemWidth);
   const startIndex = Math.max(0, Math.floor(-offsetX / totalItemWidth));
   const endIndex = Math.min(data.length - 1, startIndex + visibleCandlesCount + 2);
@@ -60,12 +102,11 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   const baseRange = baseMax - baseMin || 1;
   const baseCenter = (baseMax + baseMin) / 2;
 
-  // yZoom > 1 = zoom in (dar aralık), yZoom < 1 = zoom out (geniş aralık)
   const priceRange = baseRange / Math.max(0.1, yZoom);
   maxPrice = baseCenter + priceRange / 2;
   minPrice = baseCenter - priceRange / 2;
 
-  const scaleY = canvas.height / priceRange;
+  const scaleY = chartBottom / priceRange;
 
   let decimals = 2;
   if (priceRange < 0.1) decimals = 6;
@@ -73,7 +114,7 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   else if (priceRange > 1000) decimals = 0;
 
   const getX = (index) => offsetX + index * totalItemWidth + candleWidth / 2;
-  const getY = (price) => canvas.height - (price - minPrice) * scaleY;
+  const getY = (price) => chartBottom - (price - minPrice) * scaleY;
 
   // Grid
   ctx.strokeStyle = colors.grid;
@@ -82,10 +123,38 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   for (let i = 0; i <= 5; i++) {
     const p = minPrice + priceRange * (i / 5);
     const y = getY(p);
+    if (y < 0 || y > chartBottom) continue;
     ctx.moveTo(0, y);
     ctx.lineTo(canvas.width, y);
   }
   ctx.stroke();
+
+  // Trend Çizgileri
+  if (showTrend && (endIndex - startIndex) > 15) {
+    const tl = calcTrendLines(data, startIndex, endIndex);
+    const drawTrend = (reg, color) => {
+      if (!reg) return;
+      const x1 = getX(startIndex);
+      const x2 = getX(endIndex);
+      const y1 = getY(reg.slope * startIndex + reg.intercept);
+      const y2 = getY(reg.slope * endIndex + reg.intercept);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width - rightPad, chartBottom);
+      ctx.clip();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([7, 4]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    };
+    drawTrend(tl.resistance, 'rgba(251, 113, 133, 0.85)');
+    drawTrend(tl.support, 'rgba(52, 211, 153, 0.85)');
+  }
 
   // Order Blocks
   orderBlocks.forEach(ob => {
@@ -136,22 +205,81 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
     ctx.fillRect(x - candleWidth / 2, Math.min(yOpen, yClose), candleWidth, bodyH);
   }
 
+  // Fiyat Alarmı çizgisi
+  if (alarm) {
+    const alarmY = getY(alarm);
+    if (alarmY >= 0 && alarmY <= chartBottom) {
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, alarmY);
+      ctx.lineTo(canvas.width - rightPad, alarmY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Hacim histogramı
+  if (showVolume && volAreaH > 0) {
+    // Ayırıcı çizgi
+    ctx.strokeStyle = '#2B3139';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, chartBottom);
+    ctx.lineTo(canvas.width - rightPad, chartBottom);
+    ctx.stroke();
+
+    // Görünür mumların max hacmi
+    let maxVol = 0;
+    for (let i = startIndex; i <= endIndex; i++) {
+      if (data[i] && parseFloat(data[i].volume) > maxVol) maxVol = parseFloat(data[i].volume);
+    }
+
+    for (let i = startIndex; i <= endIndex; i++) {
+      const c = data[i];
+      const x = getX(i);
+      const vol = parseFloat(c.volume);
+      const barH = maxVol > 0 ? Math.floor((vol / maxVol) * (volAreaH - 4)) : 0;
+      const isBullish = c.close >= c.open;
+      ctx.fillStyle = isBullish ? 'rgba(8, 153, 129, 0.55)' : 'rgba(242, 54, 69, 0.55)';
+      ctx.fillRect(x - candleWidth / 2, canvas.height - barH, candleWidth, barH);
+    }
+  }
+
   // Price axis background
   ctx.fillStyle = '#1e222d';
   ctx.fillRect(canvas.width - rightPad, 0, rightPad, canvas.height);
+
+  // Fiyat eksenindeki alarm etiketi
+  if (alarm) {
+    const alarmY = getY(alarm);
+    if (alarmY >= 0 && alarmY <= chartBottom) {
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillRect(canvas.width - rightPad, alarmY - 10, rightPad, 20);
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 10px Arial';
+      ctx.textAlign = 'right';
+      ctx.fillText(formatFiyat(alarm, decimals), canvas.width - 5, alarmY + 4);
+    }
+  }
+
+  // Price axis labels
   ctx.fillStyle = '#8a939f';
   ctx.font = '11px Arial';
   ctx.textAlign = 'right';
   for (let i = 0; i <= 5; i++) {
     const p = minPrice + priceRange * (i / 5);
-    ctx.fillText(formatFiyat(p, decimals), canvas.width - 5, getY(p) + 4);
+    const y = getY(p);
+    if (y < 0 || y > chartBottom) continue;
+    ctx.fillText(formatFiyat(p, decimals), canvas.width - 5, y + 4);
   }
 
   // Current price line
   if (data.length > 0) {
     const last = data[data.length - 1];
     const curY = getY(last.close);
-    let labelY = Math.max(15, Math.min(canvas.height - 15, curY));
+    let labelY = Math.max(15, Math.min(chartBottom - 15, curY));
     const isBull = last.close >= last.open;
     const pc = isBull ? colors.bullishCandle : colors.bearishCandle;
 
@@ -186,15 +314,13 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
     }
 
     if (hoveredOB) {
-      // Mobilde canvas küçükse daha büyük tooltip
       const isMobile = canvas.width < 600;
-      const tipW = isMobile ? canvas.width - 24 : 200;
-      const tipH = isMobile ? 110 : 90;
+      const tipW = isMobile ? canvas.width - 24 : 220;
+      const tipH = isMobile ? 130 : 110;
       const fBase = isMobile ? 14 : 12;
       const fSmall = isMobile ? 13 : 11;
       const lineH = isMobile ? 20 : 16;
 
-      // Mobilde ortada üstte göster, masaüstünde fare yanında
       let tipX, tipY;
       if (isMobile) {
         tipX = 12;
@@ -219,6 +345,12 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
       if (!hoveredOB.active) title += ' (Kırıldı)';
       ctx.fillStyle = '#f8fafc';
       ctx.fillText(title, tipX + 12, tipY + fBase + 8);
+
+      // Güç skoru
+      const stars = '★'.repeat(hoveredOB.strength || 1) + '☆'.repeat(5 - (hoveredOB.strength || 1));
+      ctx.font = `${fSmall}px sans-serif`;
+      ctx.fillStyle = '#fbbf24';
+      ctx.fillText(stars, tipX + tipW - (isMobile ? 70 : 60), tipY + fBase + 8);
 
       const divY = tipY + fBase + 14;
       ctx.beginPath();

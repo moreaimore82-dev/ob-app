@@ -3,7 +3,7 @@ import { drawChart } from '../utils/drawChart';
 
 const RIGHT_PAD = 80;
 
-export default function ChartCanvas({ data, orderBlocks }) {
+export default function ChartCanvas({ data, orderBlocks, showVolume, showTrend, alarm }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef({
@@ -18,6 +18,9 @@ export default function ChartCanvas({ data, orderBlocks }) {
     tooltipTimer: null,
     data: [],
     orderBlocks: [],
+    showVolume: false,
+    showTrend: false,
+    alarm: null,
     initialized: false,
   });
 
@@ -36,6 +39,9 @@ export default function ChartCanvas({ data, orderBlocks }) {
       mouseY: s.mouseY,
       isDragging: s.isDragging,
       yZoom: s.yZoom,
+      showVolume: s.showVolume,
+      showTrend: s.showTrend,
+      alarm: s.alarm,
     });
   }, []);
 
@@ -53,6 +59,14 @@ export default function ChartCanvas({ data, orderBlocks }) {
     }
     render();
   }, [data, orderBlocks, render]);
+
+  // Toggle/alarm prop sync
+  useEffect(() => {
+    stateRef.current.showVolume = showVolume;
+    stateRef.current.showTrend = showTrend;
+    stateRef.current.alarm = alarm;
+    render();
+  }, [showVolume, showTrend, alarm, render]);
 
   // Resize
   useEffect(() => {
@@ -99,14 +113,13 @@ export default function ChartCanvas({ data, orderBlocks }) {
       e.preventDefault();
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
+      const dir = e.deltaY > 0 ? -1 : 1;
 
-      // Fiyat ekseni üzerindeyse Y zoom
       if (mx >= canvas.width - RIGHT_PAD - 10) {
-        const dir = e.deltaY > 0 ? -1 : 1;
+        // Fiyat ekseni üzerinde: Y zoom
         s.yZoom = Math.max(0.2, Math.min(10, s.yZoom * (1 + dir * 0.1)));
       } else {
-        // Normal X zoom
-        const dir = e.deltaY > 0 ? -1 : 1;
+        // Grafik alanı: X zoom
         const oldTW = s.candleWidth + s.spacing;
         s.candleWidth = Math.max(2, Math.min(30, s.candleWidth + dir));
         s.spacing = s.candleWidth * 0.25;
@@ -150,7 +163,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
         prevTouches = [{ clientX: t.clientX, clientY: t.clientY }];
 
         if (isInAxisArea(t.clientX, rect)) {
-          // Fiyat ekseni: tek parmak dikey sürükleme = Y zoom
           touchMode = 'yAxis';
           axisStartY = t.clientY;
           axisStartZoom = s.yZoom;
@@ -164,8 +176,8 @@ export default function ChartCanvas({ data, orderBlocks }) {
         tapStart = null;
 
         const midX = (t0.clientX + t1.clientX) / 2;
-        if (isInAxisArea(midX, rect)) {
-          // İki parmak fiyat ekseni üzerinde → Y ekseni pinch zoom
+        const rect2 = canvas.getBoundingClientRect();
+        if (isInAxisArea(midX, rect2)) {
           touchMode = 'yAxisPinch';
         } else {
           touchMode = 'pinch';
@@ -194,7 +206,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
         render();
 
       } else if (touchMode === 'yAxis' && e.touches.length === 1) {
-        // Dikey sürükleme → Y zoom (yukarı = zoom in)
         const dy = axisStartY - e.touches[0].clientY;
         s.yZoom = Math.max(0.2, Math.min(10, axisStartZoom * Math.pow(1.01, dy)));
         render();
@@ -206,7 +217,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
         const prevDx = prevTouches[0].clientX - prevTouches[1].clientX;
         const prevDy = prevTouches[0].clientY - prevTouches[1].clientY;
         const prevDist = Math.sqrt(prevDx * prevDx + prevDy * prevDy);
-
         const curDx = t0.clientX - t1.clientX;
         const curDy = t0.clientY - t1.clientY;
         const curDist = Math.sqrt(curDx * curDx + curDy * curDy);
@@ -218,17 +228,13 @@ export default function ChartCanvas({ data, orderBlocks }) {
 
         const scale = curDist / prevDist;
         const midX = (t0.clientX + t1.clientX) / 2 - rect.left;
-
         const oldTW = s.candleWidth + s.spacing;
         const newCW = Math.max(2, Math.min(30, s.candleWidth * scale));
         s.candleWidth = newCW;
         s.spacing = newCW * 0.25;
         const newTW = s.candleWidth + s.spacing;
-
-        // Zoom merkezi (iki parmak ortası) sabit kalsın
         s.offsetX = midX - (midX - s.offsetX) * (newTW / oldTW);
 
-        // Yatay pan (iki parmak birlikte kayıyor)
         const prevMidX = (prevTouches[0].clientX + prevTouches[1].clientX) / 2;
         const curMidX = (t0.clientX + t1.clientX) / 2;
         s.offsetX += curMidX - prevMidX;
@@ -239,8 +245,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
       } else if (touchMode === 'yAxisPinch' && e.touches.length === 2) {
         const t0 = e.touches[0];
         const t1 = e.touches[1];
-
-        // Dikey mesafe farkı → Y zoom
         const prevVertDist = Math.abs(prevTouches[0].clientY - prevTouches[1].clientY);
         const curVertDist = Math.abs(t0.clientY - t1.clientY);
 
@@ -272,7 +276,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
           }
           lastTapTime = now;
 
-          // Tek tap → tooltip
           if (!s.isDragging) {
             if (s.tooltipLocked) {
               clearTooltip();
@@ -288,7 +291,6 @@ export default function ChartCanvas({ data, orderBlocks }) {
         touchMode = null;
 
       } else if (e.touches.length === 1) {
-        // Pinch bitti, tek parmak kaldı → pan'e geç
         touchMode = 'pan';
         tapStart = null;
         prevTouches = [{ clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }];

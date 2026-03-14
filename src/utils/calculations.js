@@ -17,6 +17,7 @@ export function calculateATR(data, period = 14) {
 
 export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
   const orderBlocks = [];
+  const avgVolume = data.reduce((s, c) => s + parseFloat(c.volume), 0) / data.length;
 
   const addUnique = (newOb) => {
     if (!orderBlocks.find(ob => ob.startIndex === newOb.startIndex)) {
@@ -43,7 +44,8 @@ export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
           }
         }
         if (obCandle && (obCandle.high - obCandle.low) < atrData[obCandle.index] * 2.5) {
-          addUnique({ type: 'bullish', startIndex: obCandle.index, displacementIndex: i, top: obCandle.high, bottom: obCandle.low, active: true, mitigatedIndex: null, data: obCandle });
+          const strength = calcStrength(obCandle, avgVolume, true);
+          addUnique({ type: 'bullish', startIndex: obCandle.index, displacementIndex: i, top: obCandle.high, bottom: obCandle.low, active: true, mitigatedIndex: null, strength, data: obCandle });
         }
       } else {
         let obCandle = null;
@@ -56,7 +58,8 @@ export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
           }
         }
         if (obCandle && (obCandle.high - obCandle.low) < atrData[obCandle.index] * 2.5) {
-          addUnique({ type: 'bearish', startIndex: obCandle.index, displacementIndex: i, top: obCandle.high, bottom: obCandle.low, active: true, mitigatedIndex: null, data: obCandle });
+          const strength = calcStrength(obCandle, avgVolume, false);
+          addUnique({ type: 'bearish', startIndex: obCandle.index, displacementIndex: i, top: obCandle.high, bottom: obCandle.low, active: true, mitigatedIndex: null, strength, data: obCandle });
         }
       }
     }
@@ -72,6 +75,34 @@ export function detectOrderBlocks(data, atrData, multiplier = 1.5) {
   }
 
   return orderBlocks;
+}
+
+function calcStrength(obCandle, avgVolume, isBullish) {
+  const volRatio = Math.min(2, parseFloat(obCandle.volume) / avgVolume);
+  const buyPct = parseFloat(obCandle.buyPct);
+  const dominance = isBullish ? buyPct / 100 : (100 - buyPct) / 100;
+  const raw = (volRatio / 2) * 0.6 + dominance * 0.4;
+  return Math.max(1, Math.min(5, Math.round(raw * 5)));
+}
+
+export function calcOBSuccessRate(orderBlocks, data) {
+  const mitigated = orderBlocks.filter(ob => !ob.active);
+  if (mitigated.length === 0) return null;
+
+  let reacted = 0;
+  for (const ob of mitigated) {
+    for (let k = ob.displacementIndex; k < ob.mitigatedIndex; k++) {
+      const c = data[k];
+      if (ob.type === 'bullish' && c.low <= ob.top && c.close > ob.top) { reacted++; break; }
+      if (ob.type === 'bearish' && c.high >= ob.bottom && c.close < ob.bottom) { reacted++; break; }
+    }
+  }
+
+  return {
+    total: mitigated.length,
+    reacted,
+    rate: Math.round((reacted / mitigated.length) * 100),
+  };
 }
 
 export function generateAIRecommendation(data, orderBlocks) {

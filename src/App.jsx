@@ -3,7 +3,7 @@ import Header from './components/Header';
 import AIBar from './components/AIBar';
 import ChartCanvas from './components/ChartCanvas';
 import Sidebar from './components/Sidebar';
-import { calculateATR, detectOrderBlocks, generateAIRecommendation } from './utils/calculations';
+import { calculateATR, detectOrderBlocks, generateAIRecommendation, calcOBSuccessRate } from './utils/calculations';
 import './App.css';
 
 async function fetchKlines(symbol, timeframe) {
@@ -46,7 +46,7 @@ async function fetchKlines(symbol, timeframe) {
 
 export default function App() {
   const [symbol, setSymbol] = useState('BTC');
-  const [timeframe, setTimeframe] = useState('5m'); // 'interval' değil 'timeframe' — window.setInterval ile çakışmayı önler
+  const [timeframe, setTimeframe] = useState('5m');
   const [atrMultiplier, setAtrMultiplier] = useState('1.5');
   const [data, setData] = useState([]);
   const [orderBlocks, setOrderBlocks] = useState([]);
@@ -54,21 +54,68 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(30);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [successStats, setSuccessStats] = useState(null);
+
+  // Parametreler
+  const [showVolume, setShowVolume] = useState(() => localStorage.getItem('param_volume') === 'true');
+  const [showTrend, setShowTrend] = useState(() => localStorage.getItem('param_trend') === 'true');
+  const [alarm, setAlarm] = useState(() => {
+    const v = localStorage.getItem('price_alarm');
+    return v ? parseFloat(v) : null;
+  });
 
   const countdownRef = useRef(null);
   const isFetchingRef = useRef(false);
+  const alarmFiredRef = useRef(false);
+  const prevPriceRef = useRef(null);
 
-  const runAI = useCallback((rawData, obs) => {
-    setAi(generateAIRecommendation(rawData, obs));
-  }, []);
+  const handleSetVolume = (v) => { setShowVolume(v); localStorage.setItem('param_volume', v); };
+  const handleSetTrend = (v) => { setShowTrend(v); localStorage.setItem('param_trend', v); };
+  const handleSetAlarm = (price) => {
+    if (price) {
+      const p = parseFloat(price);
+      if (isNaN(p)) return;
+      setAlarm(p);
+      localStorage.setItem('price_alarm', String(p));
+      alarmFiredRef.current = false;
+    } else {
+      setAlarm(null);
+      localStorage.removeItem('price_alarm');
+      alarmFiredRef.current = false;
+    }
+  };
+
+  // Alarm tetikleyici
+  useEffect(() => {
+    if (!alarm || !data.length) return;
+    const currentPrice = data[data.length - 1].close;
+    const prevPrice = prevPriceRef.current;
+    if (prevPrice !== null) {
+      const crossed = (prevPrice < alarm && currentPrice >= alarm) || (prevPrice > alarm && currentPrice <= alarm);
+      if (crossed && !alarmFiredRef.current) {
+        alarmFiredRef.current = true;
+        const fire = () => new Notification('🔔 Fiyat Alarmı!', {
+          body: `${symbol} fiyatı ${alarm} seviyesini geçti! Anlık: ${currentPrice.toFixed(2)}`,
+          icon: '/favicon.svg',
+        });
+        if (Notification.permission === 'granted') {
+          fire();
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(p => { if (p === 'granted') fire(); });
+        }
+      }
+    }
+    prevPriceRef.current = currentPrice;
+  }, [data, alarm, symbol]);
 
   const processAndSet = useCallback((rawData, mult) => {
     const atr = calculateATR(rawData);
     const obs = detectOrderBlocks(rawData, atr, parseFloat(mult) || 1.5);
     setData(rawData);
     setOrderBlocks(obs);
-    runAI(rawData, obs);
-  }, [runAI]);
+    setAi(generateAIRecommendation(rawData, obs));
+    setSuccessStats(calcOBSuccessRate(obs, rawData));
+  }, []);
 
   const startCountdown = useCallback(() => {
     clearInterval(countdownRef.current);
@@ -114,7 +161,8 @@ export default function App() {
       const atr = calculateATR(data);
       const obs = detectOrderBlocks(data, atr, parseFloat(val) || 1.5);
       setOrderBlocks(obs);
-      runAI(data, obs);
+      setAi(generateAIRecommendation(data, obs));
+      setSuccessStats(calcOBSuccessRate(obs, data));
     }
   };
 
@@ -136,12 +184,25 @@ export default function App() {
         loading={loading}
         onOpenSidebar={() => setSidebarOpen(true)}
         countdown={countdown}
+        showVolume={showVolume}
+        setShowVolume={handleSetVolume}
+        showTrend={showTrend}
+        setShowTrend={handleSetTrend}
+        alarm={alarm}
+        setAlarm={handleSetAlarm}
       />
       <AIBar ai={ai} />
       <div className="main-content">
-        <ChartCanvas data={data} orderBlocks={orderBlocks} />
+        <ChartCanvas
+          data={data}
+          orderBlocks={orderBlocks}
+          showVolume={showVolume}
+          showTrend={showTrend}
+          alarm={alarm}
+        />
         <Sidebar
           orderBlocks={orderBlocks}
+          successStats={successStats}
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
