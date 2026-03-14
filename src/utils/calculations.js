@@ -105,6 +105,48 @@ export function calcOBSuccessRate(orderBlocks, data) {
   };
 }
 
+export function calcConvergence(ai, liquidityWalls, currentPrice) {
+  if (!ai || !liquidityWalls.length || !currentPrice) return null;
+
+  const isLong = ai.signal.includes('LONG');
+  const isShort = ai.signal.includes('SHORT');
+  if (!isLong && !isShort) return null;
+
+  const band = currentPrice * 0.03; // mevcut fiyatın ±%3'ü
+
+  const fmtVol = (v) => v >= 1000000
+    ? `${(v / 1000000).toFixed(1)}M`
+    : v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v.toFixed(0);
+
+  if (isLong) {
+    // Mevcut fiyatın hemen altında büyük alıcı duvarı var mı?
+    const wall = liquidityWalls
+      .filter(w => w.type === 'bid' && w.price <= currentPrice && w.price >= currentPrice - band)
+      .sort((a, b) => b.volume - a.volume)[0];
+    if (wall) {
+      return {
+        type: 'LONG',
+        reason: `Bullish OB destek bölgesi ile ${wall.price.toFixed(0)}$ seviyesindeki ${fmtVol(wall.volume)} alıcı duvarı çakışıyor → çift onay`,
+      };
+    }
+  }
+
+  if (isShort) {
+    // Mevcut fiyatın hemen üstünde büyük satıcı duvarı var mı?
+    const wall = liquidityWalls
+      .filter(w => w.type === 'ask' && w.price >= currentPrice && w.price <= currentPrice + band)
+      .sort((a, b) => b.volume - a.volume)[0];
+    if (wall) {
+      return {
+        type: 'SHORT',
+        reason: `Bearish OB direnç bölgesi ile ${wall.price.toFixed(0)}$ seviyesindeki ${fmtVol(wall.volume)} satıcı duvarı çakışıyor → çift onay`,
+      };
+    }
+  }
+
+  return null;
+}
+
 export function generateAIRecommendation(data, orderBlocks) {
   if (!data.length) return null;
   const currentPrice = data[data.length - 1].close;

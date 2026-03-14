@@ -3,7 +3,7 @@ import Header from './components/Header';
 import AIBar from './components/AIBar';
 import ChartCanvas from './components/ChartCanvas';
 import Sidebar from './components/Sidebar';
-import { calculateATR, detectOrderBlocks, generateAIRecommendation, calcOBSuccessRate } from './utils/calculations';
+import { calculateATR, detectOrderBlocks, generateAIRecommendation, calcOBSuccessRate, calcConvergence } from './utils/calculations';
 import './App.css';
 
 async function fetchOrderBook(symbol) {
@@ -108,6 +108,7 @@ export default function App() {
   const [showTrend, setShowTrend] = useState(() => localStorage.getItem('param_trend') === 'true');
   const [showLiquidity, setShowLiquidity] = useState(() => localStorage.getItem('param_liquidity') === 'true');
   const [liquidityWalls, setLiquidityWalls] = useState([]);
+  const [convergence, setConvergence] = useState(null);
   const [alarm, setAlarm] = useState(() => {
     const v = localStorage.getItem('price_alarm');
     return v ? parseFloat(v) : null;
@@ -226,13 +227,23 @@ export default function App() {
   useEffect(() => {
     if (!showLiquidity || !data.length) {
       setLiquidityWalls([]);
+      setConvergence(null);
       return;
     }
     const currentPrice = data[data.length - 1]?.close;
     fetchOrderBook(symbol).then(depth => {
-      setLiquidityWalls(processOrderBook(depth, currentPrice));
+      const walls = processOrderBook(depth, currentPrice);
+      setLiquidityWalls(walls);
+      setConvergence(calcConvergence(ai, walls, currentPrice));
     });
   }, [showLiquidity, data, symbol]);
+
+  // ai değişince de convergence'ı güncelle (liquidityWalls zaten varsa)
+  useEffect(() => {
+    if (!liquidityWalls.length || !data.length) return;
+    const currentPrice = data[data.length - 1]?.close;
+    setConvergence(calcConvergence(ai, liquidityWalls, currentPrice));
+  }, [ai, liquidityWalls, data]);
 
   useEffect(() => {
     if (countdown === 0 && !loading) {
@@ -285,7 +296,7 @@ export default function App() {
         alarm={alarm}
         setAlarm={handleSetAlarm}
       />
-      <AIBar ai={ai} />
+      <AIBar ai={ai} convergence={convergence} />
       <div className="main-content">
         <ChartCanvas
           data={data}
