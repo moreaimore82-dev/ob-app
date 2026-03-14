@@ -189,7 +189,7 @@ export function calcConvergence({ ai, liquidityWalls = [], data = [], showLiquid
         .sort((a, b) => b.volume - a.volume)[0];
       if (wall) confirmations.push({
         name: 'Likidite Duvarı',
-        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} büyük alıcı duvarı`,
+        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} adet alım hacmi`,
       });
     } else {
       const wall = liquidityWalls
@@ -197,7 +197,7 @@ export function calcConvergence({ ai, liquidityWalls = [], data = [], showLiquid
         .sort((a, b) => b.volume - a.volume)[0];
       if (wall) confirmations.push({
         name: 'Likidite Duvarı',
-        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} büyük satıcı duvarı`,
+        reason: `${wall.price.toFixed(0)}$ seviyesinde ${fmtVol(wall.volume)} adet satım hacmi`,
       });
     }
   }

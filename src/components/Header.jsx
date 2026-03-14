@@ -83,7 +83,7 @@ export default function Header({
               checked={showLiquidity}
               onChange={setShowLiquidity}
               label="Likidite Duvarları"
-              tooltip="Order book'ta mevcut fiyata yakın bölgelerdeki büyük alıcı (yeşil) ve satıcı (kırmızı) duvarlarını grafikte gösterir. Bu seviyeler güçlü destek/direnç işlevi görebilir."
+              tooltip="Order book'ta mevcut fiyata yakın bölgelerdeki yoğun alım (yeşil) ve satım (kırmızı) emirlerini grafikte gösterir. Yanındaki rakam o seviyedeki coin adedini (hacmini) ifade eder. Bu seviyeler güçlü destek/direnç işlevi görebilir."
             />
             <ParamToggle
               checked={showRSI}
