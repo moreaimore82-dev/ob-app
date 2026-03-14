@@ -3,12 +3,11 @@ import { useEffect, useState } from 'react';
 export default function Header({
   symbol, setSymbol, interval, setInterval, atrMultiplier, setAtrMultiplier,
   onFetch, loading, onOpenSidebar, countdown,
-  showVolume, setShowVolume, showTrend, setShowTrend, showLiquidity, setShowLiquidity, alarm, setAlarm,
+  showTrend, setShowTrend, showLiquidity, setShowLiquidity,
 }) {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstall, setShowInstall] = useState(false);
   const [showParams, setShowParams] = useState(false);
-  const [alarmDraft, setAlarmDraft] = useState(alarm ? String(alarm) : '');
 
   useEffect(() => {
     const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); setShowInstall(true); };
@@ -25,14 +24,6 @@ export default function Header({
   };
 
   const barPct = (countdown / 30) * 100;
-
-  const handleAlarmSave = () => {
-    setAlarm(alarmDraft.trim() || null);
-  };
-  const handleAlarmClear = () => {
-    setAlarmDraft('');
-    setAlarm(null);
-  };
 
   return (
     <header className="header">
@@ -66,20 +57,10 @@ export default function Header({
         </div>
       </div>
 
-      {/* Parametreler Paneli */}
       {showParams && (
         <div className="params-panel">
           <div className="params-section">
             <span className="params-label">Göstergeler:</span>
-            <label className="param-toggle">
-              <input
-                type="checkbox"
-                checked={showVolume}
-                onChange={e => setShowVolume(e.target.checked)}
-              />
-              <span className="param-toggle-track" />
-              <span className="param-toggle-text">Hacim Histogramı</span>
-            </label>
             <label className="param-toggle">
               <input
                 type="checkbox"
@@ -98,24 +79,6 @@ export default function Header({
               <span className="param-toggle-track" />
               <span className="param-toggle-text">Likidite Duvarları</span>
             </label>
-          </div>
-          <div className="params-section params-alarm">
-            <span className="params-label">🔔 Fiyat Alarmı:</span>
-            <input
-              type="number"
-              className="alarm-input"
-              placeholder="Fiyat gir..."
-              value={alarmDraft}
-              onChange={e => setAlarmDraft(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleAlarmSave()}
-            />
-            <button className="btn-alarm-set" onClick={handleAlarmSave}>Ayarla</button>
-            {alarm && (
-              <button className="btn-alarm-clear" onClick={handleAlarmClear}>Sil</button>
-            )}
-            {alarm && (
-              <span className="alarm-active-badge">✅ Aktif: {alarm}</span>
-            )}
           </div>
         </div>
       )}

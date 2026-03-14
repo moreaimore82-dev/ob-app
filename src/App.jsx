@@ -20,7 +20,6 @@ async function fetchOrderBook(symbol) {
 function processOrderBook(depth, currentPrice) {
   if (!depth?.bids || !depth?.asks || !currentPrice) return [];
 
-  // Dinamik bucket boyutu (fiyatın ~0.1%'i)
   const raw = currentPrice * 0.001;
   const mag = Math.pow(10, Math.floor(Math.log10(raw)));
   const bucketSize = Math.round(raw / mag) * mag || mag;
@@ -104,90 +103,20 @@ export default function App() {
   const [successStats, setSuccessStats] = useState(null);
 
   // Parametreler
-  const [showVolume, setShowVolume] = useState(() => localStorage.getItem('param_volume') === 'true');
   const [showTrend, setShowTrend] = useState(() => localStorage.getItem('param_trend') === 'true');
   const [showLiquidity, setShowLiquidity] = useState(() => localStorage.getItem('param_liquidity') === 'true');
   const [liquidityWalls, setLiquidityWalls] = useState([]);
   const [convergence, setConvergence] = useState(null);
-  const [alarm, setAlarm] = useState(() => {
-    const v = localStorage.getItem('price_alarm');
-    return v ? parseFloat(v) : null;
-  });
 
   const countdownRef = useRef(null);
   const isFetchingRef = useRef(false);
-  const alarmFiredRef = useRef(false);
-  const prevPriceRef = useRef(null);
-  const audioCtxRef = useRef(null);
 
-  const playAlarmSound = useCallback(() => {
-    try {
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      const ctx = audioCtxRef.current;
-      // 3 kısa bip
-      [0, 0.25, 0.5].forEach((delay) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
-        gain.gain.setValueAtTime(0.6, ctx.currentTime + delay);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.2);
-        osc.start(ctx.currentTime + delay);
-        osc.stop(ctx.currentTime + delay + 0.2);
-      });
-    } catch (e) {
-      // Ses çalınamazsa sessizce devam et
-    }
-  }, []);
-
-  const handleSetVolume = (v) => { setShowVolume(v); localStorage.setItem('param_volume', v); };
   const handleSetTrend = (v) => { setShowTrend(v); localStorage.setItem('param_trend', v); };
   const handleSetLiquidity = (v) => {
     setShowLiquidity(v);
     localStorage.setItem('param_liquidity', v);
-    if (!v) setLiquidityWalls([]);
+    if (!v) { setLiquidityWalls([]); setConvergence(null); }
   };
-  const handleSetAlarm = (price) => {
-    if (price) {
-      const p = parseFloat(price);
-      if (isNaN(p)) return;
-      setAlarm(p);
-      localStorage.setItem('price_alarm', String(p));
-      alarmFiredRef.current = false;
-    } else {
-      setAlarm(null);
-      localStorage.removeItem('price_alarm');
-      alarmFiredRef.current = false;
-    }
-  };
-
-  // Alarm tetikleyici
-  useEffect(() => {
-    if (!alarm || !data.length) return;
-    const currentPrice = data[data.length - 1].close;
-    const prevPrice = prevPriceRef.current;
-    if (prevPrice !== null) {
-      const crossed = (prevPrice < alarm && currentPrice >= alarm) || (prevPrice > alarm && currentPrice <= alarm);
-      if (crossed && !alarmFiredRef.current) {
-        alarmFiredRef.current = true;
-        playAlarmSound();
-        const fire = () => new Notification('🔔 Fiyat Alarmı!', {
-          body: `${symbol} fiyatı ${alarm} seviyesini geçti! Anlık: ${currentPrice.toFixed(2)}`,
-          icon: '/favicon.svg',
-        });
-        if (Notification.permission === 'granted') {
-          fire();
-        } else if (Notification.permission !== 'denied') {
-          Notification.requestPermission().then(p => { if (p === 'granted') fire(); });
-        }
-      }
-    }
-    prevPriceRef.current = currentPrice;
-  }, [data, alarm, symbol]);
 
   const processAndSet = useCallback((rawData, mult) => {
     const atr = calculateATR(rawData);
@@ -238,7 +167,7 @@ export default function App() {
     });
   }, [showLiquidity, data, symbol]);
 
-  // ai değişince de convergence'ı güncelle (liquidityWalls zaten varsa)
+  // ai değişince de convergence'ı güncelle
   useEffect(() => {
     if (!liquidityWalls.length || !data.length) return;
     const currentPrice = data[data.length - 1]?.close;
@@ -287,23 +216,17 @@ export default function App() {
         loading={loading}
         onOpenSidebar={() => setSidebarOpen(true)}
         countdown={countdown}
-        showVolume={showVolume}
-        setShowVolume={handleSetVolume}
         showTrend={showTrend}
         setShowTrend={handleSetTrend}
         showLiquidity={showLiquidity}
         setShowLiquidity={handleSetLiquidity}
-        alarm={alarm}
-        setAlarm={handleSetAlarm}
       />
       <AIBar ai={ai} convergence={convergence} />
       <div className="main-content">
         <ChartCanvas
           data={data}
           orderBlocks={orderBlocks}
-          showVolume={showVolume}
           showTrend={showTrend}
-          alarm={alarm}
           liquidityWalls={liquidityWalls}
         />
         <Sidebar

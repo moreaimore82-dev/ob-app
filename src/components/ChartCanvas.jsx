@@ -3,7 +3,7 @@ import { drawChart } from '../utils/drawChart';
 
 const RIGHT_PAD = 80;
 
-export default function ChartCanvas({ data, orderBlocks, showVolume, showTrend, alarm, liquidityWalls = [] }) {
+export default function ChartCanvas({ data, orderBlocks, showTrend, liquidityWalls = [] }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const stateRef = useRef({
@@ -18,9 +18,7 @@ export default function ChartCanvas({ data, orderBlocks, showVolume, showTrend, 
     tooltipTimer: null,
     data: [],
     orderBlocks: [],
-    showVolume: false,
     showTrend: false,
-    alarm: null,
     liquidityWalls: [],
     initialized: false,
   });
@@ -40,9 +38,7 @@ export default function ChartCanvas({ data, orderBlocks, showVolume, showTrend, 
       mouseY: s.mouseY,
       isDragging: s.isDragging,
       yZoom: s.yZoom,
-      showVolume: s.showVolume,
       showTrend: s.showTrend,
-      alarm: s.alarm,
       liquidityWalls: s.liquidityWalls,
     });
   }, []);
@@ -62,14 +58,12 @@ export default function ChartCanvas({ data, orderBlocks, showVolume, showTrend, 
     render();
   }, [data, orderBlocks, render]);
 
-  // Toggle/alarm/liquidity prop sync
+  // Toggle/liquidity prop sync
   useEffect(() => {
-    stateRef.current.showVolume = showVolume;
     stateRef.current.showTrend = showTrend;
-    stateRef.current.alarm = alarm;
     stateRef.current.liquidityWalls = liquidityWalls;
     render();
-  }, [showVolume, showTrend, alarm, liquidityWalls, render]);
+  }, [showTrend, liquidityWalls, render]);
 
   // Resize
   useEffect(() => {

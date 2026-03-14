@@ -66,7 +66,7 @@ function calcTrendLines(data, startIndex, endIndex) {
   };
 }
 
-export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1, showVolume = false, showTrend = false, alarm = null, liquidityWalls = [] }) {
+export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spacing, mouseX, mouseY, isDragging, yZoom = 1, showTrend = false, liquidityWalls = [] }) {
   if (!data.length) return;
 
   const ctx = canvas.getContext('2d');
@@ -78,9 +78,7 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
   const rightPad = 80;
   const visibleWidth = canvas.width - rightPad;
 
-  // Hacim alanı için chart yüksekliği ayarla
-  const volAreaH = showVolume ? Math.floor(canvas.height * 0.20) : 0;
-  const chartBottom = canvas.height - volAreaH;
+  const chartBottom = canvas.height;
 
   const visibleCandlesCount = Math.ceil(visibleWidth / totalItemWidth);
   const startIndex = Math.max(0, Math.floor(-offsetX / totalItemWidth));
@@ -238,64 +236,9 @@ export function drawChart({ canvas, data, orderBlocks, offsetX, candleWidth, spa
     });
   }
 
-  // Fiyat Alarmı çizgisi
-  if (alarm) {
-    const alarmY = getY(alarm);
-    if (alarmY >= 0 && alarmY <= chartBottom) {
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = '#fbbf24';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(0, alarmY);
-      ctx.lineTo(canvas.width - rightPad, alarmY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-  }
-
-  // Hacim histogramı
-  if (showVolume && volAreaH > 0) {
-    // Ayırıcı çizgi
-    ctx.strokeStyle = '#2B3139';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, chartBottom);
-    ctx.lineTo(canvas.width - rightPad, chartBottom);
-    ctx.stroke();
-
-    // Görünür mumların max hacmi
-    let maxVol = 0;
-    for (let i = startIndex; i <= endIndex; i++) {
-      if (data[i] && parseFloat(data[i].volume) > maxVol) maxVol = parseFloat(data[i].volume);
-    }
-
-    for (let i = startIndex; i <= endIndex; i++) {
-      const c = data[i];
-      const x = getX(i);
-      const vol = parseFloat(c.volume);
-      const barH = maxVol > 0 ? Math.floor((vol / maxVol) * (volAreaH - 4)) : 0;
-      const isBullish = c.close >= c.open;
-      ctx.fillStyle = isBullish ? 'rgba(8, 153, 129, 0.55)' : 'rgba(242, 54, 69, 0.55)';
-      ctx.fillRect(x - candleWidth / 2, canvas.height - barH, candleWidth, barH);
-    }
-  }
-
   // Price axis background
   ctx.fillStyle = '#1e222d';
   ctx.fillRect(canvas.width - rightPad, 0, rightPad, canvas.height);
-
-  // Fiyat eksenindeki alarm etiketi
-  if (alarm) {
-    const alarmY = getY(alarm);
-    if (alarmY >= 0 && alarmY <= chartBottom) {
-      ctx.fillStyle = '#fbbf24';
-      ctx.fillRect(canvas.width - rightPad, alarmY - 10, rightPad, 20);
-      ctx.fillStyle = '#000000';
-      ctx.font = 'bold 10px Arial';
-      ctx.textAlign = 'right';
-      ctx.fillText(formatFiyat(alarm, decimals), canvas.width - 5, alarmY + 4);
-    }
-  }
 
   // Price axis labels
   ctx.fillStyle = '#8a939f';
